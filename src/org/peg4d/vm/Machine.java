@@ -108,10 +108,12 @@ public class Machine {
 		}
 	}
 		
-	ParsingObject run(ParsingObject left, ParsingSource s, long pos, int pc, Opcode[] code) {
+	public ParsingObject run(ParsingObject left, ParsingSource s, long pos, int pc, Opcode[] code) {
 		Opcode op = code[pc];
 		MachineContext c = new MachineContext(left, s, pos);
 		while(true) {
+			op = code[pc];
+			System.out.println(op);
 			switch(op.opcode) {
 			case EXIT:
 				return c.left;
