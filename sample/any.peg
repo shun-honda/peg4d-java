@@ -2,5 +2,5 @@
 // PEG4d sample
 // See http://peg4d.org/ for more information.
 
-TopLevel = .*;
+File = .*;
 

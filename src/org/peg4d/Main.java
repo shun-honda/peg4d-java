@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 
 import org.peg4d.ext.Generator;
+import org.peg4d.vm.Machine;
 
 public class Main {
 	public final static String  ProgName  = "PEG4d";
@@ -91,6 +92,13 @@ public class Main {
 		if(PegFormat != null) {
 			GrammarFormatter fmt = loadFormatter(PegFormat);
 			peg.show(StartingPoint, fmt);
+			if(fmt instanceof CodeGenerator) {
+				if(InputFileName != null) {
+					Machine m = new Machine();
+					ParsingContext p = peg.newParserContext(Main.loadSource(peg, InputFileName));
+					m.run(p.parseNode("File"), p.source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+				}
+			}
 			return;
 		}
 		if(InputFileName != null) {

@@ -1,4 +1,4 @@
-TopLevel
+File
 	= PROLOG? _* DTD? _* Element WS*
 	;
 PROLOG
