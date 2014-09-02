@@ -1,2 +1,5 @@
+TopLevel 
+    = File
+
 File
-    = 'foo' 'bar'
+    = 'foo' 'bar' ;

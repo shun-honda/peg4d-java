@@ -2,4 +2,4 @@ TopLevel
     = File
 
 File
-    = 'abc' &'d' ;
+    = [abc]? ;

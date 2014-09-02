@@ -1,0 +1,8 @@
+TopLevel 
+    = File
+
+File
+    = {@ @A }* ;
+    
+A
+    = 'hoge' #tag ;

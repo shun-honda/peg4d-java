@@ -1,2 +1,5 @@
+TopLevel 
+    = File
+
 File
-    = 'hoge'
+    = 'hoge' ;

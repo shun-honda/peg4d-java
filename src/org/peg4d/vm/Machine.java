@@ -243,6 +243,8 @@ public class Machine {
 			case TAG:
 				TAG(c, op);
 				break;
+			default:
+				throw new RuntimeException("unimplemented opcode: " + op);
 			}	
 			pc = pc + 1;
 		}
