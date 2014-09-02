@@ -1,5 +1,5 @@
 File
-    = {@ A }*
+    = {@ A }* ;
     
 A
-    = 'hoge' #tag
+    = 'hoge' #tag ;

@@ -1,5 +1,5 @@
 File
-    = {@A #hoge}
+    = {@A #hoge} ;
 
 A
-    = 'a'
+    = 'a' ;
