@@ -12,11 +12,12 @@ for a in `ls ./test/*.peg`  ; do
 	for b in `ls ${t}* ` ; do
 		COUNT=$((COUNT + 1))
 		echo "run test ${b}"
-		java -jar ${JAR} -p ${a} -f vm ${b}
+		# java -jar ${JAR} -p ${a} -f vm ${b}
+		java -classpath ${JAR} org.peg4d.MachineTestRunner -p ${a} ${b}
 		RET=$?
 		PREFIX="[failed]"
 		if [ $RET == 0 ] ; then
-			PREFIX="[sucess]"
+			PREFIX="[success]"
 			OK=$((OK + 1))
 		fi
 		msg="${PREFIX}: ${b}"
