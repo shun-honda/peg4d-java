@@ -1,5 +1,5 @@
 File
-    = A ;
+    = {@ A #test } ;
 
 A
     = 'a' ;
