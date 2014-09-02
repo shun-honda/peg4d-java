@@ -1,5 +1,5 @@
 TopLevel 
     = File
 
-File
-    = [hoge] ;
+File 
+    = [a-z]? ;
