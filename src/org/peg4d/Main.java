@@ -95,8 +95,9 @@ public class Main {
 			if(fmt instanceof CodeGenerator) {
 				if(InputFileName != null) {
 					Machine m = new Machine();
-					ParsingContext p = peg.newParserContext(Main.loadSource(peg, InputFileName));
-					m.run(p.parseNode("File"), p.source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+					ParsingSource source = Main.loadSource(peg, InputFileName);
+					ParsingObject emptyObject = new ParsingObject(peg.getModelTag("#empty"), source, 0);
+					m.run(emptyObject, source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
 				}
 			}
 			return;

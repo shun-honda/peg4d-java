@@ -210,6 +210,8 @@ public class Machine {
 			case AMATCH:
 				AMATCH(c, op);
 				break;
+			default:
+				throw new RuntimeException("unimplemented opcode: " + op);
 			}	
 			pc = pc + 1;
 		}
