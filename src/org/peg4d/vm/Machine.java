@@ -101,7 +101,27 @@ public class Machine {
 	public final static void TMATCH(MachineContext c, Opcode op)
 	{
 		if(c.source.match(c.pos, op.bdata)) {
-			c.pos += op.ndata;
+			c.pos += op.bdata.length;
+		}
+		else {
+			c.left = failure(c);
+		}
+	}
+	
+	public final static void AMATCH(MachineContext c, Opcode op)
+	{
+		if(c.source.consume(c.pos, op.bdata)) {
+			c.pos ++;
+		}
+		else {
+			c.left = failure(c);
+		}
+	}
+	
+	public final static void UMATCH(MachineContext c, Opcode op)
+	{
+		if(c.pos < c.source.length()) {
+			c.pos++;
 		}
 		else {
 			c.left = failure(c);
@@ -184,7 +204,13 @@ public class Machine {
 			case TMATCH:
 				TMATCH(c, op);
 				break;
-			}
+			case UMATCH:
+				UMATCH(c, op);
+				break;
+			case AMATCH:
+				AMATCH(c, op);
+				break;
+			}	
 			pc = pc + 1;
 		}
 	}
