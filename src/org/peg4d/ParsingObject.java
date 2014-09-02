@@ -10,7 +10,7 @@ public class ParsingObject {
 	ParsingObject            parent = null;
 	private ParsingObject    AST[] = null;
 
-	ParsingObject(ParsingTag tag, ParsingSource source, long pospeg) {
+	public ParsingObject(ParsingTag tag, ParsingSource source, long pospeg) {
 		this.tag        = tag;
 		this.source     = source;
 		this.pospeg     = pospeg;
@@ -50,11 +50,11 @@ public class ParsingObject {
 		return this.length;
 	}
 
-	void setLength(int length) {
+	public void setLength(int length) {
 		this.length = length;
 	}
 	
-	void setTag(ParsingTag tag) {
+	public void setTag(ParsingTag tag) {
 		this.tag = tag;
 	}
 

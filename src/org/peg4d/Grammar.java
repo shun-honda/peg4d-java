@@ -290,6 +290,7 @@ public class Grammar {
 		UList<String> list = makeList(startPoint);
 		for(int i = 0; i < list.size(); i++) {
 			String name = list.ArrayValues[i];
+			fmt.nonTerminalMap.put(name, fmt.opList.size());
 			PExpression e = this.getExpression(name);
 			fmt.formatRule(name, e, sb);
 		}

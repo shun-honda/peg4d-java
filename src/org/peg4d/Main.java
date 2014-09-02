@@ -95,9 +95,20 @@ public class Main {
 			if(fmt instanceof CodeGenerator) {
 				if(InputFileName != null) {
 					Machine m = new Machine();
+					ParsingContext p = peg.newParserContext(Main.loadSource(peg, InputFileName));
 					ParsingSource source = Main.loadSource(peg, InputFileName);
 					ParsingObject emptyObject = new ParsingObject(peg.getModelTag("#empty"), source, 0);
-					m.run(emptyObject, source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+					ParsingObject c = m.run(emptyObject, source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+					if(p.hasUnconsumedCharacter()) {
+						long pos = p.getPosition();
+						if(pos > 0) {
+							p.showPosition("consumed", pos-1);
+						}
+						p.showPosition("unconsumed", pos);
+					}
+					if(OutputType.equalsIgnoreCase("pego") && c != null) {
+						new Generator(OutputFileName).writePego(c);
+					}
 				}
 			}
 			return;
