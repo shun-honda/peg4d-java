@@ -46,6 +46,7 @@ public abstract class ParsingSource {
 	
 	
 	public abstract boolean match(long pos, byte[] text);
+	public abstract boolean consume(long pos, byte[] charset);
 	public abstract String  substring(long startIndex, long endIndex);
 	public abstract long    linenum(long pos);
 	
@@ -157,6 +158,7 @@ public abstract class ParsingSource {
 
 class StringSource extends ParsingSource {
 	private byte[] utf8;
+	private boolean[] asciiBitMap = new boolean[ParsingSource.EOF+1];
 	long textLength;
 	
 	StringSource(Grammar peg, String sourceText) {
@@ -193,6 +195,32 @@ class StringSource extends ParsingSource {
 			if(text[i] != this.utf8[(int)pos + i]) {
 				return false;
 			}
+		}
+		return true;
+	}
+	
+	@Override
+	public final boolean consume(long pos, byte[] charset) {
+		if(pos + 1 > this.textLength) {
+			return false;
+		}
+		int c1, c2;
+		for(int i = 1; i < charset.length - 1; i++) {
+			c1 = charset[i];
+			i++;
+			if(charset[i] == 45) {
+				i++;
+				c2 = charset[i];
+				for(int c = c1; c < c2; c++) {
+					asciiBitMap[c] = true;
+				}
+			}
+			else {
+				asciiBitMap[c1] = true;
+			}
+		}
+		if(!asciiBitMap[this.utf8[(int) pos]]) {
+			return false;
 		}
 		return true;
 	}
@@ -326,6 +354,11 @@ class FileSource extends ParsingSource {
 			}
 		}
 		return true;
+	}
+	
+	@Override
+	public final boolean consume(long pos, byte[] charset) {
+		return false;
 	}
 		
 	@Override
@@ -498,6 +531,11 @@ class InputStreamSource extends ParsingSource {
 
 	@Override
 	public boolean match(long pos, byte[] text) {
+		return false;
+	}
+	
+	@Override
+	public boolean consume(long pos, byte[] charset) {
 		return false;
 	}
 

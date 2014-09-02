@@ -1,5 +1,6 @@
 package org.peg4d;
 
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 
 import org.peg4d.vm.MachineInstruction;
@@ -256,7 +257,13 @@ class CodeGenerator extends GrammarFormatter {
 
 	private void writeCode(MachineInstruction mi, String op) {
 		sb.append("\t" + mi + " " + op + "\n");
-		opList.add(new Opcode(mi));
+		byte[] bdata;
+		try {
+			bdata = op.getBytes("UTF-8");
+			opList.add(new Opcode(mi, bdata));
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
@@ -304,7 +311,7 @@ class CodeGenerator extends GrammarFormatter {
 	}
 	@Override
 	public void visitString(PString e) {
-		this.writeCode(MachineInstruction.TMATCH, ParsingCharset.quoteString('\'', e.text, '\''));
+		this.writeCode(MachineInstruction.TMATCH, e.text);
 	}
 	@Override
 	public void visitCharacter(PCharacter e) {
