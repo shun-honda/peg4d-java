@@ -11,6 +11,10 @@ public final class Opcode {
     	this.opcode = mi;
     	this.ndata = ndata;
     }
+    public Opcode(MachineInstruction mi, byte[] bdata) {
+		this.opcode = mi;
+		this.bdata = bdata;
+    }
     @Override
 	public String toString() {
     	if(this.bdata == null) {
