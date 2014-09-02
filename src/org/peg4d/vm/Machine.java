@@ -1,7 +1,13 @@
 package org.peg4d.vm;
 
+import java.io.UnsupportedEncodingException;
+
+import org.peg4d.Grammar;
+import org.peg4d.ParsingContext;
 import org.peg4d.ParsingObject;
 import org.peg4d.ParsingSource;
+import org.peg4d.ParsingTag;
+import org.peg4d.model.ParsingModel;
 
 public class Machine {
 
@@ -9,8 +15,8 @@ public class Machine {
 		return null;
 	}
 	
-	private static void link(ParsingObject parent, ParsingObject child, int index) {
-		
+	private static void link(ParsingObject parent, ParsingObject child) {
+		parent.set(parent.size(), child);
 	}
 
 	public final static void PUSH_POS(MachineContext c) {
@@ -91,7 +97,7 @@ public class Machine {
 	    if(c.left != null) {
 	        ParsingObject left = c.ostack[c.ostacktop];
 	        if(c.left != left) {
-	            link(left, c.left, op.ndata);
+	            link(left, c.left);
 	            c.left = left;
 	        }
 	    }
@@ -100,6 +106,7 @@ public class Machine {
 	
 	public final static void TMATCH(MachineContext c, Opcode op)
 	{
+		System.out.println(c.source.getLineTextAt(1));
 		if(c.source.match(c.pos, op.bdata)) {
 			c.pos += op.bdata.length;
 		}
@@ -127,6 +134,26 @@ public class Machine {
 			c.left = failure(c);
 		}
 	}
+	
+	public final static void NEW(MachineContext c, Opcode op)
+	{
+		ParsingModel model = new ParsingModel();
+		ParsingTag emptyTag = model.get("#empty");
+		c.left = new ParsingObject(emptyTag, c.source, c.pos);
+		c.left.setLength((int) (c.pos - c.lstack[c.lstacktop - 2]));
+	}
+	
+	public final static void TAG(MachineContext c, Opcode op)
+	{
+		String tagName;
+		try {
+			tagName = new String(op.bdata, "UTF-8");
+			ParsingTag tag = new ParsingTag(tagName);
+			c.left.setTag(tag.tagging());
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+	}
 		
 	public ParsingObject run(ParsingObject left, ParsingSource s, long pos, int pc, Opcode[] code) {
 		Opcode op = code[pc];
@@ -140,9 +167,9 @@ public class Machine {
 			case JUMP:
 				pc = op.ndata;
 				break;
-			case CALL:
-			    c.lstack[c.lstacktop] = pc;
-			    c.lstacktop++;
+			case CALL:	
+				c.lstack[c.lstacktop] = pc;
+				c.lstacktop++;
 				pc = op.ndata;
 				break;
 			case RET:
@@ -209,6 +236,12 @@ public class Machine {
 				break;
 			case AMATCH:
 				AMATCH(c, op);
+				break;
+			case NEW:
+				NEW(c, op);
+				break;
+			case TAG:
+				TAG(c, op);
 				break;
 			}	
 			pc = pc + 1;

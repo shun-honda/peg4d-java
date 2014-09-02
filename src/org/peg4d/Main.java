@@ -96,7 +96,17 @@ public class Main {
 				if(InputFileName != null) {
 					Machine m = new Machine();
 					ParsingContext p = peg.newParserContext(Main.loadSource(peg, InputFileName));
-					m.run(p.parseNode("File"), p.source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+					ParsingObject c =  m.run(p.parseNode("File"), p.source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+					if(p.hasUnconsumedCharacter()) {
+						long pos = p.getPosition();
+						if(pos > 0) {
+							p.showPosition("consumed", pos-1);
+						}
+						p.showPosition("unconsumed", pos);
+					}
+					if(OutputType.equalsIgnoreCase("pego") && c != null) {
+						new Generator(OutputFileName).writePego(c);
+					}
 				}
 			}
 			return;

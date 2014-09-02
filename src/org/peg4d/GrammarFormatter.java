@@ -1,13 +1,18 @@
 package org.peg4d;
 
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Stack;
 
 import org.peg4d.vm.MachineInstruction;
 import org.peg4d.vm.Opcode;
 
 class GrammarFormatter extends ParsingVisitor {
 	protected StringBuilder sb = null;
+	UList<Opcode> opList = new UList<Opcode>(new Opcode[256]);
+	HashMap<String, Integer> nonTerminalMap = new HashMap<String, Integer>();
+	
 	public GrammarFormatter() {
 		this.sb = null;
 	}
@@ -221,7 +226,6 @@ class GrammarFormatter extends ParsingVisitor {
 
 class CodeGenerator extends GrammarFormatter {
 
-	UList<Opcode> opList = new UList<Opcode>(new Opcode[256]);
 	HashMap<Integer,Integer> labelMap = new HashMap<Integer,Integer>();
 
 //	public CodeGenerator() {
@@ -285,10 +289,26 @@ class CodeGenerator extends GrammarFormatter {
 	
 	@Override
 	public void formatFooter(StringBuilder sb) {
+		Stack<Integer> RetPosStack = new Stack<Integer>();
 		for(int i = 0; i < opList.size(); i++) {
 			Opcode op = opList.ArrayValues[i];
 			if(op.isJumpCode()) {
-				op.ndata = labelMap.get(op.ndata) - 1;
+				switch(op.opcode) {
+				case CALL:
+					String labelName;
+					try {
+						labelName = new String(op.bdata, "UTF-8");
+						op.ndata = nonTerminalMap.get(labelName) - 1;
+						RetPosStack.push(i);
+					} catch (UnsupportedEncodingException e) {
+						e.printStackTrace();
+					}
+					break;
+				case RET:
+					break;
+				default:
+					op.ndata = labelMap.get(op.ndata) - 1;
+				}
 			}
 			sb.append("["+i+"] " + op + "\n");
 		}
@@ -432,6 +452,7 @@ class CodeGenerator extends GrammarFormatter {
 		}
 		writeCode(MachineInstruction.PUSH_BUFPOS);
 		writeCode(MachineInstruction.NEW);
+		//writeCode(MachineInstruction.PUSH_LEFT);
 		for(int i = e.prefetchIndex; i < e.size(); i++) {
 			PExpression se = e.get(i);
 			se.visit(this);
@@ -439,6 +460,7 @@ class CodeGenerator extends GrammarFormatter {
 		}
 		writeCode(MachineInstruction.POP_BUFPOS);
 		writeCode(MachineInstruction.POP_POS);
+		
 		writeJumpCode(MachineInstruction.JUMP, labelE);
 		writeLabel(labelF2);
 		writeCode(MachineInstruction.POP_BUFPOS);

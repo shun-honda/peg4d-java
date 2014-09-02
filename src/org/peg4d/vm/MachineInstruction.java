@@ -3,10 +3,10 @@ package org.peg4d.vm;
 public enum MachineInstruction {
 	JUMP,
 	CALL,
+	RET,
 	IFSUCC,
 	IFFAIL,
 	EXIT,
-	RET,
 	PUSH_POS,
 	POP_POS,
 	POP_POS_BACK,
