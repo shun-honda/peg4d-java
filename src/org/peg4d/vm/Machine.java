@@ -3,6 +3,7 @@ package org.peg4d.vm;
 import java.io.UnsupportedEncodingException;
 
 import org.peg4d.Grammar;
+import org.peg4d.PExpression;
 import org.peg4d.ParsingContext;
 import org.peg4d.ParsingObject;
 import org.peg4d.ParsingSource;
@@ -12,10 +13,11 @@ import org.peg4d.model.ParsingModel;
 public class Machine {
 
 	private static ParsingObject failure(MachineContext c) {
-		return null;
+		return c.failureResult;
 	}
 	
 	private static void link(ParsingObject parent, ParsingObject child) {
+		parent.setLength(parent.getLength() + child.getLength());
 		parent.set(parent.size(), child);
 	}
 
@@ -48,17 +50,17 @@ public class Machine {
 	}
 
 	public final static void PUSH_FPOS(MachineContext c) {
-	    c.lstack[c.lstacktop] = c.fpos;
-	    c.lstacktop++;
+	    c.bstack[c.bstacktop] = c.fpos;
+	    c.bstacktop++;
 	}
 
 	public final static void POP_FPOS(MachineContext c) {
-	    c.lstacktop--;
+	    c.bstacktop--;
 	}
 
 	public final static void POP_FPOS_FORGET(MachineContext c) {
-	    c.lstacktop--;
-	    c.fpos = c.lstack[c.lstacktop];
+	    c.bstacktop--;
+	    c.fpos = c.bstack[c.bstacktop];
 	}
 	
 	public final static void PUSH_LEFT(MachineContext c) {
@@ -94,7 +96,7 @@ public class Machine {
 	public final static void POP_LEFT_CONNECT(MachineContext c, Opcode op)
 	{
 	    c.ostacktop--;
-	    if(c.left != null) {
+	    if(c.left != c.failureResult) {
 	        ParsingObject left = c.ostack[c.ostacktop];
 	        if(c.left != left) {
 	            link(left, c.left);
@@ -106,7 +108,6 @@ public class Machine {
 	
 	public final static void TMATCH(MachineContext c, Opcode op)
 	{
-		System.out.println(c.source.getLineTextAt(1));
 		if(c.source.match(c.pos, op.bdata)) {
 			c.pos += op.bdata.length;
 		}
@@ -139,8 +140,8 @@ public class Machine {
 	{
 		ParsingModel model = new ParsingModel();
 		ParsingTag emptyTag = model.get("#empty");
-		c.left = new ParsingObject(emptyTag, c.source, c.pos);
-		c.left.setLength((int) (c.pos - c.lstack[c.lstacktop - 2]));
+		c.left = new ParsingObject(emptyTag, c.source, c.left.getLength() << 16);
+		c.left.setLength((int) (c.pos - c.lstack[c.lstacktop - 1]));
 	}
 	
 	public final static void TAG(MachineContext c, Opcode op)
@@ -177,12 +178,12 @@ public class Machine {
 			    pc = (int)c.lstack[c.lstacktop];
 				break;
 			case IFSUCC:
-				if(c.left != null) {
+				if(c.left != c.failureResult) {
 					pc = op.ndata;
 				}
 				break;
 			case IFFAIL:
-				if(c.left == null) {
+				if(c.left == c.failureResult) {
 					pc = op.ndata;
 				}
 				break;

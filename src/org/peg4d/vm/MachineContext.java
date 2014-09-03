@@ -9,10 +9,12 @@ final class MachineContext {
     long pos;
     long fpos = 0;
     long[]   lstack = new long[4096];
+    long[]   bstack = new long[4096];
     int      lstacktop = 1;
     ParsingObject[] ostack = new ParsingObject[512];
     int      ostacktop = 0;
     int      bstacktop;
+    public final ParsingObject failureResult = new ParsingObject(null, this.source, 0);
     public MachineContext(ParsingObject left, ParsingSource s, long pos) {
     	this.left = left;
     	this.source = s;
