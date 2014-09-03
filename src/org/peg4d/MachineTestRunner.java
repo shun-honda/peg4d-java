@@ -1,6 +1,7 @@
 package org.peg4d;
 
 import org.peg4d.vm.Machine;
+import org.peg4d.vm.MachineContext;
 
 
 public class MachineTestRunner {
@@ -41,7 +42,8 @@ public class MachineTestRunner {
 		Machine machine = new Machine();
 		ParsingSource source = Main.loadSource(peg, sourceFileName);
 		ParsingObject emptyObject = new ParsingObject(peg.getModelTag("#empty"), source, 0);
-		ParsingObject mObj = machine.run(emptyObject, source, 0, 1, formatter.opList.ArrayValues);
+		MachineContext mc = new MachineContext(emptyObject, source, 0);
+		ParsingObject mObj = machine.run(mc, 1, formatter.opList.ArrayValues);
 
 		boolean result = compare(tradObj, mObj);
 

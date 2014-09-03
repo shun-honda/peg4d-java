@@ -3,7 +3,7 @@ package org.peg4d.vm;
 import org.peg4d.ParsingObject;
 import org.peg4d.ParsingSource;
 
-final class MachineContext {
+public final class MachineContext {
 	ParsingObject left;
     ParsingSource source;
     long pos;
@@ -21,4 +21,16 @@ final class MachineContext {
     	this.pos = pos;
     	this.lstack[0] = -1;
     }
+    
+    public final void showPosition(String msg, long pos) {
+		System.out.println(this.source.formatErrorMessage("debug", pos, msg));
+	}
+    
+    public final long getPosition() {
+    	return this.pos;
+    }
+    
+    public final boolean hasUnconsumedCharacter() {
+		return this.source.byteAt(this.pos) != ParsingSource.EOF;
+	}
 }

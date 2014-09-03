@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 
 import org.peg4d.ext.Generator;
 import org.peg4d.vm.Machine;
+import org.peg4d.vm.MachineContext;
 
 public class Main {
 	public final static String  ProgName  = "PEG4d";
@@ -95,16 +96,16 @@ public class Main {
 			if(fmt instanceof CodeGenerator) {
 				if(InputFileName != null) {
 					Machine m = new Machine();
-					ParsingContext p = peg.newParserContext(Main.loadSource(peg, InputFileName));
 					ParsingSource source = Main.loadSource(peg, InputFileName);
 					ParsingObject emptyObject = new ParsingObject(peg.getModelTag("#empty"), source, 0);
-					ParsingObject c = m.run(emptyObject, source, 0, 1, ((CodeGenerator) fmt).opList.ArrayValues);
-					if(p.hasUnconsumedCharacter()) {
-						long pos = p.getPosition();
+					MachineContext mc = new MachineContext(emptyObject, source, 0);
+					ParsingObject c = m.run(mc, 1, ((CodeGenerator) fmt).opList.ArrayValues);
+					if(mc.hasUnconsumedCharacter()) {
+						long pos = mc.getPosition();
 						if(pos > 0) {
-							p.showPosition("consumed", pos-1);
+							mc.showPosition("consumed", pos-1);
 						}
-						p.showPosition("unconsumed", pos);
+						mc.showPosition("unconsumed", pos);
 					}
 					if(OutputType.equalsIgnoreCase("pego") && c != null) {
 						new Generator(OutputFileName).writePego(c);
