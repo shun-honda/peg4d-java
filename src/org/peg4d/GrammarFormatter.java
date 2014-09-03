@@ -367,16 +367,19 @@ class CodeGenerator extends GrammarFormatter {
 		int labelE = newLabel();
 		int labelE2 = newLabel();
 		if(e.atleast == 1) {
+			writeCode(MachineInstruction.PUSH_LEFT);
 			e.inner.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL,labelE2);
 		}
 		writeCode(MachineInstruction.PUSH_FPOS);
 		writeLabel(labelL);
+		writeCode(MachineInstruction.PUSH_LEFT);
 		e.inner.visit(this);
 		writeJumpCode(MachineInstruction.IFFAIL, labelE);
 		writeJumpCode(MachineInstruction.JUMP, labelL);
 		writeLabel(labelE);
 		writeCode(MachineInstruction.POP_FPOS_FORGET);
+		writeCode(MachineInstruction.POP_LEFT);
 		writeLabel(labelE2);
 	}
 	
@@ -408,17 +411,17 @@ class CodeGenerator extends GrammarFormatter {
 		int labelF = newLabel();
 		int labelE = newLabel();
 		writeCode(MachineInstruction.PUSH_POS);
-		writeCode(MachineInstruction.PUSH_BUFPOS);
+		//writeCode(MachineInstruction.PUSH_BUFPOS);
 		for(int i = 0; i < e.size(); i++) {
 			PExpression se = e.get(i);
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF);
 		}
-		writeCode(MachineInstruction.POP_BUFPOS);
+		//writeCode(MachineInstruction.POP_BUFPOS);
 		writeCode(MachineInstruction.POP_POS);
 		writeJumpCode(MachineInstruction.JUMP, labelE);
 		writeLabel(labelF);
-		writeCode(MachineInstruction.POP_BUFPOS_BACK);
+		//writeCode(MachineInstruction.POP_BUFPOS_BACK);
 		writeCode(MachineInstruction.POP_POS_BACK);
 		writeLabel(labelE);
 	}
@@ -450,7 +453,7 @@ class CodeGenerator extends GrammarFormatter {
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF);
 		}
-		writeCode(MachineInstruction.PUSH_BUFPOS);
+		//writeCode(MachineInstruction.PUSH_BUFPOS);
 		writeCode(MachineInstruction.NEW);
 		//writeCode(MachineInstruction.PUSH_LEFT);
 		for(int i = e.prefetchIndex; i < e.size(); i++) {
@@ -458,12 +461,12 @@ class CodeGenerator extends GrammarFormatter {
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF2);
 		}
-		writeCode(MachineInstruction.POP_BUFPOS);
+		//writeCode(MachineInstruction.POP_BUFPOS);
 		writeCode(MachineInstruction.POP_POS);
 		
 		writeJumpCode(MachineInstruction.JUMP, labelE);
 		writeLabel(labelF2);
-		writeCode(MachineInstruction.POP_BUFPOS);
+		//writeCode(MachineInstruction.POP_BUFPOS);
 		writeLabel(labelF);
 		writeCode(MachineInstruction.POP_POS_BACK);
 		writeLabel(labelE);
