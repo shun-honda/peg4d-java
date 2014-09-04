@@ -36,31 +36,30 @@ public class Machine {
 	}
 
 	public final static void PUSH_BUFPOS(MachineContext c) {
-	    c.lstack[c.lstacktop] = c.bstacktop;
-	    c.lstacktop++;
+	    c.bstack[c.bstacktop] = c.pos;
+	    c.bstacktop++;
+		//c.consume_pos = c.pos;
 	}
 
 	public final static void POP_BUFPOS(MachineContext c) {
-	    c.lstacktop--;
+	    c.bstacktop--;
 	}
 
 	public final static void POP_BUFPOS_BACK(MachineContext c) {
 	    c.lstacktop--;
-	    c.bstacktop = (int)c.lstack[c.lstacktop];
+	    c.pos = (int)c.bstack[c.lstacktop];
 	}
 
 	public final static void PUSH_FPOS(MachineContext c) {
-	    c.bstack[c.bstacktop] = c.fpos;
-	    c.bstacktop++;
+	    c.fpos = c.pos;
 	}
 
 	public final static void POP_FPOS(MachineContext c) {
-	    c.bstacktop--;
+	    c.fstacktop--;
 	}
 
 	public final static void POP_FPOS_FORGET(MachineContext c) {
-	    c.bstacktop--;
-	    c.fpos = c.bstack[c.bstacktop];
+	    c.pos = c.fpos;
 	}
 	
 	public final static void PUSH_LEFT(MachineContext c) {
@@ -73,19 +72,24 @@ public class Machine {
 	    c.ostacktop--;
 	    c.left = c.ostack[c.ostacktop];
 	}
+	
+	public final static void POP_LEFT_FORGET(MachineContext c)
+	{
+	    c.ostacktop--;
+	}
 
 	public final static void POP_LEFT_IFFAIL(MachineContext c)
 	{
 	    c.ostacktop--;
-	    if(c.left == null) {
+	    if(c.left == c.failureResult) {
 	        c.left = c.ostack[c.ostacktop];
 	    }
 	}
 
 	public final static void POP_LEFT_NOT(MachineContext c)
 	{
-	    c.ostacktop--;
-	    if(c.left == null) {
+		c.ostacktop--;
+	    if(c.left == c.failureResult) {
 	        c.left = c.ostack[c.ostacktop];
 	    }
 	    else {
@@ -95,7 +99,7 @@ public class Machine {
 
 	public final static void POP_LEFT_CONNECT(MachineContext c, Opcode op)
 	{
-	    c.ostacktop--;
+    	c.ostacktop--;
 	    if(c.left != c.failureResult) {
 	        ParsingObject left = c.ostack[c.ostacktop];
 	        if(c.left != left) {
@@ -119,7 +123,7 @@ public class Machine {
 	public final static void AMATCH(MachineContext c, Opcode op)
 	{
 		if(c.source.consume(c.pos, op.bdata)) {
-			c.pos ++;
+			c.pos++;
 		}
 		else {
 			c.left = failure(c);
@@ -140,8 +144,8 @@ public class Machine {
 	{
 		ParsingModel model = new ParsingModel();
 		ParsingTag emptyTag = model.get("#empty");
-		c.left = new ParsingObject(emptyTag, c.source, c.left.getLength() << 16);
-		c.left.setLength((int) (c.pos - c.lstack[c.lstacktop - 1]));
+		c.left = new ParsingObject(emptyTag, c.source, c.bstack[c.bstacktop - 1] << 16);
+		c.left.setLength((int) (c.pos - c.bstack[c.bstacktop - 1]));
 	}
 	
 	public final static void TAG(MachineContext c, Opcode op)
@@ -218,6 +222,9 @@ public class Machine {
 				break;
 			case POP_LEFT:
 				POP_LEFT(c);
+				break;
+			case POP_LEFT_FORGET:
+				POP_LEFT_FORGET(c);
 				break;
 			case POP_LEFT_IFFAIL:
 				POP_LEFT_IFFAIL(c);

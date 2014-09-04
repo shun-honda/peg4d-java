@@ -201,17 +201,40 @@ class StringSource extends ParsingSource {
 	
 	@Override
 	public final boolean consume(long pos, byte[] charset) {
+		try {
+			String string = new String(charset, "UTF-8");
+			//System.out.println();
+		} catch (UnsupportedEncodingException e) {
+			// TODO 自動生成された catch ブロック
+			e.printStackTrace();
+		}
 		if(pos + 1 > this.textLength) {
 			return false;
 		}
-		int c1, c2;
-		for(int i = 1; i < charset.length - 1; i++) {
+		byte c1, c2;
+		int i = 1;
+		while(i < charset.length - 1) {
 			c1 = charset[i];
 			i++;
+			if(c1 == 92) {
+				do {
+					c1 = this.getMetaByte(charset[i]);
+					i++;
+				}
+				while(c1 == 0);
+			}
 			if(charset[i] == 45) {
 				i++;
 				c2 = charset[i];
-				for(int c = c1; c < c2; c++) {
+				i++;
+				if(c2 == 92) {
+					do {
+						c2 = this.getMetaByte(charset[i]);
+						i++;
+					}
+					while(c2 == 0);
+				}
+				for(int c = c1; c <= c2; c++) {
 					asciiBitMap[c] = true;
 				}
 			}
@@ -223,6 +246,18 @@ class StringSource extends ParsingSource {
 			return false;
 		}
 		return true;
+	}
+	
+	private final byte getMetaByte(byte c) {
+		switch(c) {
+		case 116:
+			return 9;
+		case 110:
+			return 10;
+		case 114:
+			return 13;
+		}
+		return 0;
 	}
 
 	@Override

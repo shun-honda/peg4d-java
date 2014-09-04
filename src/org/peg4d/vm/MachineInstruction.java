@@ -19,6 +19,7 @@ public enum MachineInstruction {
 	
 	PUSH_LEFT,
 	POP_LEFT,
+	POP_LEFT_FORGET,
 	POP_LEFT_IFFAIL,
 	POP_LEFT_NOT,
 	POP_LEFT_CONNECT,

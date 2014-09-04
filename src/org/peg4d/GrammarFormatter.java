@@ -262,12 +262,8 @@ class CodeGenerator extends GrammarFormatter {
 	private void writeCode(MachineInstruction mi, String op) {
 		sb.append("\t" + mi + " " + op + "\n");
 		byte[] bdata;
-		try {
-			bdata = op.getBytes("UTF-8");
-			opList.add(new Opcode(mi, bdata));
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
+		bdata = op.getBytes();
+		opList.add(new Opcode(mi, bdata));
 	}
 
 	@Override
@@ -366,19 +362,20 @@ class CodeGenerator extends GrammarFormatter {
 		int labelL = newLabel();
 		int labelE = newLabel();
 		int labelE2 = newLabel();
-		if(e.atleast == 1) {
+		/*if(e.atleast == 1) {
 			writeCode(MachineInstruction.PUSH_LEFT);
 			e.inner.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL,labelE2);
-		}
+		}*/
 		writeCode(MachineInstruction.PUSH_FPOS);
 		writeLabel(labelL);
 		writeCode(MachineInstruction.PUSH_LEFT);
 		e.inner.visit(this);
 		writeJumpCode(MachineInstruction.IFFAIL, labelE);
+		writeCode(MachineInstruction.POP_LEFT_FORGET);
 		writeJumpCode(MachineInstruction.JUMP, labelL);
 		writeLabel(labelE);
-		writeCode(MachineInstruction.POP_FPOS_FORGET);
+		writeCode(MachineInstruction.POP_FPOS);
 		writeCode(MachineInstruction.POP_LEFT);
 		writeLabel(labelE2);
 	}
@@ -432,13 +429,16 @@ class CodeGenerator extends GrammarFormatter {
 		int labelE = newLabel();
 		writeCode(MachineInstruction.PUSH_FPOS);
 		for(int i = 0; i < e.size(); i++) {
+			writeCode(MachineInstruction.PUSH_LEFT);
 			e.get(i).visit(this);
 			writeJumpCode(MachineInstruction.IFSUCC, labelS);
+			writeCode(MachineInstruction.POP_FPOS_FORGET);
+			writeCode(MachineInstruction.POP_LEFT);
 		}
-		writeCode(MachineInstruction.POP_FPOS);
+		//writeCode(MachineInstruction.POP_POS);
 		writeJumpCode(MachineInstruction.JUMP, labelE);
 		writeLabel(labelS);
-		writeCode(MachineInstruction.POP_FPOS_FORGET);
+		writeCode(MachineInstruction.POP_LEFT_FORGET);
 		writeLabel(labelE);
 	}
 
@@ -448,12 +448,12 @@ class CodeGenerator extends GrammarFormatter {
 		int labelF2 = newLabel();
 		int labelE = newLabel();
 		writeCode(MachineInstruction.PUSH_POS);
+		writeCode(MachineInstruction.PUSH_BUFPOS);
 		for(int i = 0; i < e.prefetchIndex; i++) {
 			PExpression se = e.get(i);
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF);
 		}
-		//writeCode(MachineInstruction.PUSH_BUFPOS);
 		writeCode(MachineInstruction.NEW);
 		//writeCode(MachineInstruction.PUSH_LEFT);
 		for(int i = e.prefetchIndex; i < e.size(); i++) {
@@ -461,12 +461,12 @@ class CodeGenerator extends GrammarFormatter {
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF2);
 		}
-		//writeCode(MachineInstruction.POP_BUFPOS);
+		writeCode(MachineInstruction.POP_BUFPOS);
 		writeCode(MachineInstruction.POP_POS);
 		
 		writeJumpCode(MachineInstruction.JUMP, labelE);
 		writeLabel(labelF2);
-		//writeCode(MachineInstruction.POP_BUFPOS);
+		writeCode(MachineInstruction.POP_BUFPOS_BACK);
 		writeLabel(labelF);
 		writeCode(MachineInstruction.POP_POS_BACK);
 		writeLabel(labelE);
