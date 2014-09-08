@@ -259,7 +259,7 @@ public class ParsingContext {
 	}
 
 	public final void opMatchAnyChar() {
-		if(this.source.charAt(this.pos) == -1) {
+		if(this.source.charAt(this.pos) != -1) {
 			this.consume(this.source.charLength(this.pos));
 		}
 		else {
