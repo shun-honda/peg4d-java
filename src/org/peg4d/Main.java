@@ -91,6 +91,11 @@ public class Main {
 		if(PEGFormatter != null) {
 			SimpleGrammarFormatter fmt = loadSimpleFormatter(PEGFormatter);
 			peg.simpleFormatAll(fmt);
+			if (InputFileName == null) {
+				fmt.writeByteCode("byteCode.bin");
+				System.out.println("ByteCode was generated !");
+				return;
+			}
 			ParsingSource source = Main.loadSource(peg, InputFileName);
 			ParsingObject emptyObject = new ParsingObject(peg.getModelTag("#empty"), source, 0);
 			SimpleVmParsingContext c = new SimpleVmParsingContext(emptyObject, source, 0);

@@ -1,5 +1,9 @@
 package org.peg4d;
 
+import java.io.BufferedOutputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Stack;
@@ -15,6 +19,46 @@ public class SimpleGrammarFormatter extends GrammarFormatter {
 	}
 	public SimpleGrammarFormatter(Grammar peg, StringBuilder sb) {
 		super(peg, sb);
+	}
+	
+	public void writeByteCode(String fileName) {
+		byte[] byteCode = new byte[8192];
+		int pos = 0;
+		for(int i = 0; i < opList.size(); i++) {
+			Opcode op = opList.ArrayValues[i];
+			byteCode[pos] = (byte) op.opcode.ordinal();
+			pos++;
+			byteCode[pos] = (byte) (0x000000ff & (op.ndata));
+			pos++;
+			byteCode[pos] = (byte) (0x000000ff & (op.ndata >> 8));
+			pos++;
+			byteCode[pos] = (byte) (0x000000ff & (op.ndata >> 16));
+			pos++;
+			byteCode[pos] = (byte) (0x000000ff & (op.ndata >> 24));
+			pos++;
+			if(op.bdata != null) {
+			int j = 0;
+				while (j < op.bdata.length) {
+					byteCode[pos] = op.bdata[j];
+					j++;
+					pos++;
+				}
+			}
+			byteCode[pos] = (byte) 0;
+			pos++;
+		}
+		byteCode[pos] = (byte) 128;
+		try {
+			FileOutputStream fos = new FileOutputStream(fileName);
+			BufferedOutputStream bos = new BufferedOutputStream(fos);
+			bos.write(byteCode);
+			bos.flush();
+			bos.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} 
 	}
 }
 
@@ -87,6 +131,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 						labelName = new String(op.bdata, "UTF-8");
 						op.ndata = nonTerminalMap.get(labelName) - 1;
 						RetPosStack.push(i);
+						op.bdata = null;
 					} catch (UnsupportedEncodingException e) {
 						e.printStackTrace();
 					}
