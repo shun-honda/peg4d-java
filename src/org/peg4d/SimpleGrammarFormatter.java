@@ -101,6 +101,13 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		opcode.bdata = op.getBytes();
 		opList.add(opcode);
 	}
+	
+	private void writeCode(MachineInstruction mi, int op) {
+		sb.append("\t" + mi + " " + op + "\n");
+		Opcode opcode = new Opcode(mi);
+		opcode.ndata = op;
+		opList.add(opcode);
+	}
 
 	@Override
 	public void formatHeader(StringBuilder sb) {
@@ -160,6 +167,10 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	public void visitString(ParsingString e) {
 		this.writeCode(MachineInstruction.opMatchText, ParsingCharset.quoteString('\'', e.text, '\''));
 	}
+	
+	public void visitByte(ParsingByte e) {
+		this.writeCode(MachineInstruction.opMatchText, e.byteChar);
+	}
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
 		this.writeCode(MachineInstruction.opMatchCharset, e.toString());
@@ -202,12 +213,12 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		int labelL = newLabel();
 		int labelE = newLabel();
 		int labelE2 = newLabel();
-//		if(e.atleast == 1) {
-//			writeCode(MachineInstruction.opRememberPosition);
-//			e.inner.visit(this);
-//			writeJumpCode(MachineInstruction.IFFAIL,labelE2);
-//			writeCode(MachineInstruction.opCommitPosition);
-//		}
+		/*if(e.atleast == 1) {
+			writeCode(MachineInstruction.opRememberPosition);
+			e.inner.visit(this);
+			writeJumpCode(MachineInstruction.IFFAIL,labelE2);
+			writeCode(MachineInstruction.opCommitPosition);
+		}*/
 		writeLabel(labelL);
 		writeCode(MachineInstruction.opRememberPosition);
 		writeCode(MachineInstruction.opStoreObject);
@@ -331,17 +342,5 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		writeCode(MachineInstruction.opBacktrackPosition);
 		writeLabel(labelE);
 		//writeCode(MachineInstruction.opCommitObject);
-	}
-
-	@Override
-	public void visitParsingOperation(ParsingOperation e) {
-		if(e instanceof ParsingMatch) {
-			sb.append("<match ");
-			e.inner.visit(this);
-			sb.append(">");
-		}
-		else {
-			e.inner.visit(this);
-		}
 	}
 }

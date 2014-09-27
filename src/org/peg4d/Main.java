@@ -109,6 +109,7 @@ public class Main {
 			else {
 				System.out.println("Failer: pos" + c.fpos);
 			}
+			return;
 		}
 		else {
 			GrammarFormatter fmt = loadGrammarFormatter(PEGFormatter);

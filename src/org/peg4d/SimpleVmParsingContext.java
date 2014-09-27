@@ -12,7 +12,38 @@ public class SimpleVmParsingContext extends ParsingContext {
 	}
 	
 	public void opMatchCharset(byte[] bdata) {
-		this.opMatchCharset(bdata);
+		try {
+			String text = new String(bdata, "UTF-8");
+			ParsingCharset u = ParsingCharset.newParsingCharset(text);
+			int consume = u.consume(this.source, pos);
+			if(consume > 0) {
+				this.consume(consume);
+			}
+			else {
+				this.opFailure();
+			}
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void opMatchText(Opcode op) {
+		if(op.bdata != null) {
+			if(this.source.match(this.pos, op.bdata)) {
+				this.consume(op.bdata.length);
+			}
+			else {
+				this.opFailure();
+			}
+		}
+		else {
+			if(this.source.byteAt(this.pos) == op.ndata) {
+				this.consume(1);
+			}
+			else {
+				this.opFailure();
+			}
+		}
 	}
 	
 	public void opConnectObject(int index) {
@@ -90,14 +121,14 @@ public class SimpleVmParsingContext extends ParsingContext {
 		this.left = null;
 	}
 	
-	public final void opMatchText(byte[] t) {
+/*	public final void opMatchText(byte[] t) {
 		if(this.source.match(this.pos, t)) {
 			this.consume(t.length);
 		}
 		else {
 			this.opFailure();
 		}
-	}
+	}*/
 	
 	public final void opMatchAnyChar() {
 		if(this.source.charAt(this.pos) != -1) {

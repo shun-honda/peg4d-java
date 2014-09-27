@@ -32,7 +32,7 @@ public class SimpleVirtualMachine {
 				}
 				break;
 			case opMatchText:
-				c.opMatchText(op.bdata);
+				c.opMatchText(op);
 				break;
 			case opMatchCharset:
 				c.opMatchCharset(op.bdata);
