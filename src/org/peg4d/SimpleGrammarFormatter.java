@@ -8,6 +8,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Stack;
 
+import org.peg4d.ParsingExpression;
 import org.peg4d.vm.MachineInstruction;
 import org.peg4d.vm.Opcode;
 
@@ -81,7 +82,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		opList.add(new Opcode(mi));
 	}
 	
-	private void writeNewObjectCode(MachineInstruction mi, PExpression p) {
+	private void writeNewObjectCode(MachineInstruction mi, ParsingExpression p) {
 		sb.append("\t" + mi + "\n");
 		opList.add(new Opcode(mi, p));
 	}
@@ -111,7 +112,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 
 	@Override
-	public void formatRule(String ruleName, PExpression e, StringBuilder sb) {
+	public void formatRule(String ruleName, ParsingExpression e, StringBuilder sb) {
 		this.sb = sb;
 		this.formatRule(ruleName, e);
 		this.writeCode(MachineInstruction.RET);
@@ -146,41 +147,41 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		}
 	}
 
-	private void formatRule(String ruleName, PExpression e) {
+	private void formatRule(String ruleName, ParsingExpression e) {
 		sb.append(ruleName + ":\n");
 		e.visit(this);
 	}
 	
 	@Override
-	public void visitNonTerminal(PNonTerminal e) {
-		this.writeCode(MachineInstruction.CALL, e.symbol);
+	public void visitNonTerminal(NonTerminal e) {
+		this.writeCode(MachineInstruction.CALL, e.ruleName);
 	}
 	@Override
-	public void visitString(PString e) {
+	public void visitString(ParsingString e) {
 		this.writeCode(MachineInstruction.opMatchText, ParsingCharset.quoteString('\'', e.text, '\''));
 	}
 	@Override
-	public void visitCharacter(PCharacter e) {
-		this.writeCode(MachineInstruction.opMatchCharset, e.charset.toString());
+	public void visitByteRange(ParsingByteRange e) {
+		this.writeCode(MachineInstruction.opMatchCharset, e.toString());
 	}
 	@Override
-	public void visitAny(PAny e) {
+	public void visitAny(ParsingAny e) {
 		this.writeCode(MachineInstruction.opMatchAnyChar);
 	}
 	@Override
-	public void visitTagging(PTagging e) {
+	public void visitTagging(ParsingTagging e) {
 		this.writeCode(MachineInstruction.opTagging, e.tag.toString());
 	}
 	@Override
-	public void visitMessage(PMessage e) {
-		this.writeCode(MachineInstruction.opValue, ParsingCharset.quoteString('\'', e.symbol, '\''));
+	public void visitValue(ParsingValue e) {
+		this.writeCode(MachineInstruction.opValue, ParsingCharset.quoteString('\'', e.value, '\''));
 	}
 	@Override
-	public void visitIndent(PIndent e) {
+	public void visitIndent(ParsingIndent e) {
 		this.writeCode(MachineInstruction.opIndent);
 	}
 	@Override
-	public void visitOptional(POptional e) {
+	public void visitOptional(ParsingOption e) {
 		int labelL = newLabel();
 		int labelE = newLabel();
 		writeCode(MachineInstruction.opRememberSequencePosition);
@@ -197,16 +198,16 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		//writeCode(MachineInstruction.opRestoreObjectIfFailure);
 	}
 	@Override
-	public void visitRepetition(PRepetition e) {
+	public void visitRepetition(ParsingRepetition e) {
 		int labelL = newLabel();
 		int labelE = newLabel();
 		int labelE2 = newLabel();
-		if(e.atleast == 1) {
-			writeCode(MachineInstruction.opRememberPosition);
-			e.inner.visit(this);
-			writeJumpCode(MachineInstruction.IFFAIL,labelE2);
-			writeCode(MachineInstruction.opCommitPosition);
-		}
+//		if(e.atleast == 1) {
+//			writeCode(MachineInstruction.opRememberPosition);
+//			e.inner.visit(this);
+//			writeJumpCode(MachineInstruction.IFFAIL,labelE2);
+//			writeCode(MachineInstruction.opCommitPosition);
+//		}
 		writeLabel(labelL);
 		writeCode(MachineInstruction.opRememberPosition);
 		writeCode(MachineInstruction.opStoreObject);
@@ -222,14 +223,14 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 	
 	@Override
-	public void visitAnd(PAnd e) {
+	public void visitAnd(ParsingAnd e) {
 		writeCode(MachineInstruction.opRememberPosition);
 		e.inner.visit(this);
 		writeCode(MachineInstruction.opBacktrackPosition);
 	}
 
 	@Override
-	public void visitNot(PNot e) {
+	public void visitNot(ParsingNot e) {
 		int labelL = newLabel();
 		int labelE = newLabel();
 		writeCode(MachineInstruction.opRememberSequencePosition);
@@ -249,7 +250,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 
 	@Override
-	public void visitConnector(PConnector e) {
+	public void visitConnector(ParsingConnector e) {
 		int labelF = newLabel();
 		int labelE = newLabel();
 		writeCode(MachineInstruction.opStoreObject);
@@ -263,12 +264,12 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 
 	@Override
-	public void visitSequence(PSequence e) {
+	public void visitSequence(ParsingSequence e) {
 		int labelF = newLabel();
 		int labelE = newLabel();
 		writeCode(MachineInstruction.opRememberPosition);
 		for(int i = 0; i < e.size(); i++) {
-			PExpression se = e.get(i);
+			ParsingExpression se = e.get(i);
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF);
 		}
@@ -281,7 +282,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 
 	@Override
-	public void visitChoice(PChoice e) {
+	public void visitChoice(ParsingChoice e) {
 		int labelS = newLabel();
 		int labelE1 = newLabel();
 		for(int i = 0; i < e.size(); i++) {
@@ -308,7 +309,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 
 	@Override
-	public void visitConstructor(PConstructor e) {
+	public void visitConstructor(ParsingConstructor e) {
 		int labelF = newLabel();
 		int labelE = newLabel();
 		if(e.leftJoin) {
@@ -319,7 +320,7 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 		}
 		writeCode(MachineInstruction.opRememberPosition);
 		for(int i = 0; i < e.size(); i++) {
-			PExpression se = e.get(i);
+			ParsingExpression se = e.get(i);
 			se.visit(this);
 			writeJumpCode(MachineInstruction.IFFAIL, labelF);
 		}
@@ -333,8 +334,8 @@ class SimpleCodeGenerator extends SimpleGrammarFormatter {
 	}
 
 	@Override
-	public void visitOperation(POperator e) {
-		if(e instanceof PMatch) {
+	public void visitParsingOperation(ParsingOperation e) {
+		if(e instanceof ParsingMatch) {
 			sb.append("<match ");
 			e.inner.visit(this);
 			sb.append(">");

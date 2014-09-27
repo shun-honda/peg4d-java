@@ -1,0 +1,9 @@
+// PEG4d Testing Not unification
+
+File
+	= {#Text} // dummy for empty file 
+
+A
+	[example: bb]
+	[bad-example: bc]
+	= !'ba' !'bc' !'a' 'b' .

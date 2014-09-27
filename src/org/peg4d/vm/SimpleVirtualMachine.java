@@ -91,9 +91,6 @@ public class SimpleVirtualMachine {
 			case opTagging:
 				c.opTagging(op);
 				break;
-			case opIndent:
-				c.opIndent();
-				break;
 			}
 			pc = pc + 1;
 		}

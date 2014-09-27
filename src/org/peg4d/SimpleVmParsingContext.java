@@ -7,18 +7,12 @@ import org.peg4d.vm.Opcode;
 
 public class SimpleVmParsingContext extends ParsingContext {
 	
-	public SimpleVmParsingContext(ParsingObject left, ParsingSource s, long pos) {
-		super(left, s, pos);
+	public SimpleVmParsingContext(ParsingSource s, long pos, int stacksize, ParsingMemo memo) {
+		super(s, pos, stacksize, memo);
 	}
 	
 	public void opMatchCharset(byte[] bdata) {
-		try {
-			String text = new String(bdata, "UTF-8");
-			ParsingCharset u = ParsingCharset.newParsingCharset(text);
-			this.opMatchCharset(u);
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
+		this.opMatchCharset(bdata);
 	}
 	
 	public void opConnectObject(int index) {
@@ -28,7 +22,7 @@ public class SimpleVmParsingContext extends ParsingContext {
 		this.left = parent;
 	}
 	
-	public void opNewObject(PExpression p) {
+	public void opNewObject(ParsingExpression p) {
 		if(this.canTransCapture()) {
 			ParsingModel model = new ParsingModel();
 			this.left = new ParsingObject(model.get("#empty"), this.source, this.pos, p);
@@ -65,5 +59,53 @@ public class SimpleVmParsingContext extends ParsingContext {
 		lpop();
 		lpop();
 		this.rollback(this.lstack[this.lstacktop]);
+	}
+	
+	public final void opStoreObject() {
+		this.opush(this.left);
+	}
+
+	public final void opDropStoredObject() {
+		this.opop();
+	}
+
+	public final void opRestoreObject() {
+		this.left = this.opop();
+	}
+	
+	public final void opRestoreNegativeObject() {
+		if(this.isFailure()) {
+			this.left = this.opop();
+		}
+		else {
+			this.opop();
+			this.opFailure();
+		}
+	}
+	
+	public final void opFailure() {
+		if(this.pos >= fpos) {  // adding error location
+			this.fpos = this.pos;
+		}
+		this.left = null;
+	}
+	
+	public final void opMatchText(byte[] t) {
+		if(this.source.match(this.pos, t)) {
+			this.consume(t.length);
+		}
+		else {
+			this.opFailure();
+		}
+	}
+	
+	public final void opMatchAnyChar() {
+		if(this.source.charAt(this.pos) != -1) {
+			int len = this.source.charLength(this.pos);
+			this.consume(len);
+		}
+		else {
+			this.opFailure();
+		}
 	}
 }

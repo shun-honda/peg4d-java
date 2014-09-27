@@ -1,22 +1,17 @@
 package org.peg4d;
 
-import java.io.File;
-
 import org.peg4d.model.ParsingModel;
 
 public class Grammar {
-	public final static PEG4dGrammar PEG4d = new PEG4dGrammar();
 	
 	GrammarFactory      factory;
 	String              name;
-	UList<PegRule>      ruleList;
-	UMap<PegRule>       ruleMap;
+	UList<String>       nameList;
+	UMap<ParsingRule>    ruleMap;
 
-	UList<PegRule>      exportedRuleList;
-	UMap<String>        objectLabelMap = null;
-	public boolean      foundError = false;
-
-	MemoRemover memoRemover = null;
+	UList<ParsingRule>   exportedRuleList;
+	UMap<String>         objectLabelMap = null;
+	public boolean       foundError = false;
 
 	int memoFactor;
 	int optimizationLevel;
@@ -30,9 +25,9 @@ public class Grammar {
 		
 	Grammar(GrammarFactory factory, String name) {
 		this.name = name;
-		this.factory = factory == null ? PEG4d.factory : factory;
-		this.ruleMap  = new UMap<PegRule>();
-		this.ruleList  = new UList<PegRule>(new PegRule[16]);
+		this.factory = factory == null ? GrammarFactory.Grammar.factory : factory;
+		this.ruleMap  = new UMap<ParsingRule>();
+		this.nameList  = new UList<String>(new String[16]);
 		this.optimizationLevel = Main.OptimizationLevel;
 		this.memoFactor = Main.MemoFactor;
 		if(this.memoFactor < 0) {
@@ -43,35 +38,41 @@ public class Grammar {
 	public String getName() {
 		return this.name;
 	}
-
+	
+	public String uniqueRuleName(String ruleName) {
+		return this.name + ":" + ruleName;
+	}
+	
+	final NonTerminal newNonTerminal(String text) {
+		return new NonTerminal(this, text);
+	}
+	
 	final boolean loadGrammarFile(String fileName) {
-		PEG4dGrammar peg4d = Grammar.PEG4d;
-		ParsingStream context = peg4d.newParserContext(Main.loadSource(peg4d, fileName));
+		PEG4dGrammar peg4d = GrammarFactory.Grammar;
+		ParsingSource s = Main.loadSource(peg4d, fileName);
+		ParsingContext context = new ParsingContext(s); //peg4d.newParserContext();
 		this.name = fileName;
 		if(fileName.indexOf('/') > 0) {
 			this.name = fileName.substring(fileName.lastIndexOf('/')+1);
 		}
 		context.setRecognitionMode(false);
+		PEG4d builder = new PEG4d(this);
 		while(context.hasByteChar()) {
-			ParsingObject po = context.parseChunk();
+			ParsingObject po = context.parse(peg4d, "Chunk");
 			if(context.isFailure()) {
-				Main._Exit(1, context.formatErrorMessage("error", "syntax error"));
-				break;
+				String msg = context.source.formatPositionLine("error", context.fpos, context.getErrorMessage());
+				Main._Exit(1, msg);
+				return false;
 			}
-			if(!PEG4dGrammar.performExpressionConstruction1(this, context, po)) {
+			if(!builder.parse(po)) {
 				return false;
 			}
 		}
-		this.verify(/*objectRemover*/);
+		this.verifyRules();
 		return this.foundError;
 	}
-	
-	private ParsingModel model = new ParsingModel();
-	public final ParsingTag getModelTag(String tagName) {
-		return model.get(tagName);
-	}
-	
-	public final PExpression getDefinedExpression(long oid) {
+		
+	public final ParsingExpression getDefinedExpression(long oid) {
 		return this.getDefinedExpression(oid);
 	}
 
@@ -84,10 +85,10 @@ public class Grammar {
 	final void importGrammar(String ns, String filePath) {
 		Grammar peg = this.factory.getGrammar(filePath);
 		if(peg != null) {
-			UList<PegRule> ruleList = peg.getExportRuleList();
+			UList<ParsingRule> ruleList = peg.getExportRuleList();
 			//System.out.println("filePath: " + filePath + " peg=" + ruleList);
 			for(int i = 0; i < ruleList.size(); i++) {
-				PegRule rule = ruleList.ArrayValues[i];
+				ParsingRule rule = ruleList.ArrayValues[i];
 				String key = rule.ruleName;
 				if(ns != null && ns.length() > 0) {
 					key = ns + ':' + rule.ruleName;
@@ -105,44 +106,59 @@ public class Grammar {
 		return this.ruleMap.get(ruleName) != null;
 	}
 
-	public final PegRule getRule(String ruleName) {
+	public final ParsingRule getRule(String ruleName) {
 		return this.ruleMap.get(ruleName);
 	}
 
-	public final PExpression getExpression(String ruleName) {
-		PegRule rule = this.getRule(ruleName);
+	public final ParsingRule getLexicalRule(String ruleName) {
+		ParsingRule r = this.getRule(ruleName);
+		if(ParsingRule.isLexicalName(ruleName) || r == null) {
+			return r;
+		}
+		String lexName = ParsingRule.toLexicalName(ruleName);
+		ParsingRule r2 = this.getRule(lexName);
+		if(r2 == null) {
+			r2 = new ParsingRule(this, lexName, null, null);
+			this.setRule(lexName, r2);
+			r2.expr = ParsingExpression.newDebug(r.expr.reduceOperation());
+			r2.expr = r.expr.reduceOperation();
+			r2.type = ParsingRule.LexicalRule;
+			r2.minlen = r.minlen;
+			r2.refc = r.refc;
+			//System.out.println("producing lexical rule: " + r2);
+		}
+		return r2;
+	}
+
+	public final ParsingExpression getExpression(String ruleName) {
+		ParsingRule rule = this.getRule(ruleName);
 		if(rule != null) {
 			return rule.expr;
 		}
 		return null;
 	}
 
-	public final void setRule(String ruleName, PExpression e) {
-		this.ruleMap.put(ruleName, new PegRule(null, 0, ruleName, e));
-	}
+//	public final void setRule(String ruleName, ParsingExpression e) {
+//		this.ruleMap.put(ruleName, new PegRule(this, null, 0, ruleName, e));
+//	}
 
-	public final void setRule(String ruleName, PegRule rule) {
+	public final void setRule(String ruleName, ParsingRule rule) {
 		if(!this.hasRule(ruleName)) {
-			this.ruleList.add(rule);
-		}
-		else {
-			for(int i = 0; i  < this.ruleList.size(); i++) {
-				if(ruleName.equals(this.ruleList.ArrayValues[i].ruleName)) {
-					this.ruleList.ArrayValues[i] = rule;
-					break;
-				}
-			}
+			this.nameList.add(ruleName);
 		}
 		this.ruleMap.put(ruleName, rule);
 	}
 	
-	public final UList<PegRule> getRuleList() {
-		return this.ruleList;
+	public final UList<ParsingRule> getRuleList() {
+		UList<ParsingRule> ruleList = new UList<ParsingRule>(new ParsingRule[nameList.size()]);
+		for(int i = 0; i < nameList.size(); i++) {
+			ruleList.add(getRule(nameList.ArrayValues[i]));
+		}
+		return ruleList;
 	}
 
-	public final UList<PExpression> getExpressionList() {
-		UList<String> nameList = this.ruleMap.keys();
-		UList<PExpression> pegList = new UList<PExpression>(new PExpression[nameList.size()]);
+	public final UList<ParsingExpression> getExpressionList() {
+		UList<ParsingExpression> pegList = new UList<ParsingExpression>(new ParsingExpression[nameList.size()]);
 		for(int i = 0; i < nameList.size(); i++) {
 			String ruleName = nameList.ArrayValues[i];
 			pegList.add(this.getRule(ruleName).expr);
@@ -150,50 +166,51 @@ public class Grammar {
 		return pegList;
 	}
 
-	public final void verify() {
-		//this.objectLabelMap = new UMap<String>();
+	public final void verifyRules() {
 		this.foundError = false;
 		this.exportedRuleList = null;
-		UList<String> nameList = this.ruleMap.keys();
-		NonTerminalChecker nc = new NonTerminalChecker();
+		this.getExportRuleList();
+		UList<String> stack = new UList<String>(new String[64]);
 		for(int i = 0; i < nameList.size(); i++) {
-			String ruleName = nameList.ArrayValues[i];
-			PegRule rule = this.getRule(ruleName);
-			nc.verify(rule);
+			ParsingRule rule = this.getRule(nameList.ArrayValues[i]);
+			String uName = rule.getUniqueName();
+			stack.clear(0);
+			stack.add(uName);
+			rule.minlen = ParsingExpression.checkLeftRecursion(rule.expr, uName, 0, 0, stack);
 		}
 		if(this.foundError) {
 			Main._Exit(1, "PegError found");
 		}
-		this.getExportRuleList();
-//		ObjectRemover objectRemover = new ObjectRemover();
+		for(int i = 0; i < nameList.size(); i++) {
+			ParsingRule rule = this.getRule(nameList.ArrayValues[i]);
+			ParsingExpression.typeCheck(rule);
+			rule.expr = rule.expr.uniquefy();
+		}
 //		for(int i = 0; i < nameList.size(); i++) {
-//			String ruleName = nameList.ArrayValues[i];
-//			PegRule rule = this.getRule(ruleName);
-//			String name = ruleName;
-//			if(name.equals("PrimaryType")) {
-//				System.out.println("DEBUG: " + name + " = " + rule.expr);
-//			}
+//			ParsingRule rule = this.getRule(nameList.ArrayValues[i]);
+//			rule.expr = rule.expr.uniquefy();
 //		}
 
-		new Inliner(this).performInlining();
-		new Optimizer(this).optimize();
-		if(this.foundError) {
-			Main._Exit(1, "PegError found");
-		}
-		this.memoRemover = new MemoRemover(this);
-		ParsingStream c = this.newParserContext();
+		Optimizer2.enableOptimizer();
 		for(int i = 0; i < nameList.size(); i++) {
-			PegRule rule = this.getRule(nameList.ArrayValues[i]);
+			ParsingRule rule = this.getRule(nameList.ArrayValues[i]);
+			Optimizer2.optimize(rule.expr);
+		
+		}
+//		this.memoRemover = new MemoRemover(this);
+		ParsingContext context = new ParsingContext(null);
+		for(int i = 0; i < nameList.size(); i++) {
+			ParsingRule rule = this.getRule(nameList.ArrayValues[i]);
 			if(rule.getGrammar() == this) {
-				rule.testExample(c);
+				rule.testExample1(this, context);
 			}
 		}
 	}
-
-	final UList<PegRule> getExportRuleList() {
+	
+	final UList<ParsingRule> getExportRuleList() {
 		if(this.exportedRuleList == null) {
-			UList<PegRule> l = new UList<PegRule>(new PegRule[4]);
-			PExpression e = this.getExpression("export");
+			UList<ParsingRule> l = new UList<ParsingRule>(new ParsingRule[4]);
+			ParsingExpression e = this.getExpression("export");
 			if(e != null) {
 				appendExportRuleList(l, e.getExpression());
 			}
@@ -202,13 +219,13 @@ public class Grammar {
 		return this.exportedRuleList;
 	}
 
-	private void appendExportRuleList(UList<PegRule> l, PExpression e) {
-		if(e instanceof PNonTerminal) {
-			PegRule rule = this.getRule(((PNonTerminal) e).symbol);
+	private void appendExportRuleList(UList<ParsingRule> l, ParsingExpression e) {
+		if(e instanceof NonTerminal) {
+			ParsingRule rule = this.getRule(((NonTerminal) e).ruleName);
 			l.add(rule);
 			Main.printVerbose("export", rule.ruleName);
 		}
-		if(e instanceof PChoice) {
+		if(e instanceof ParsingChoice) {
 			for(int i = 0; i < e.size(); i++) {
 				appendExportRuleList(l, e.get(i).getExpression());
 			}
@@ -224,7 +241,7 @@ public class Grammar {
 	int PredicatedChoiceL1 = 0;
 	int UnpredicatedChoiceL1 = 0;
 
-	void updateStat(Stat stat) {
+	void updateStat(ParsingStat stat) {
 		stat.setText("Peg", this.getName());
 		stat.setCount("PegSize", this.DefinedExpressionSize);
 		stat.setCount("PegReference",   this.Reference);
@@ -238,32 +255,11 @@ public class Grammar {
 
 //		stat.setCount("ActivatedMemo", this.EnabledMemo);
 //		stat.setCount("DisabledMemo", this.DisabledMemo);
-		stat.setCount("RemovedMemo", this.memoRemover.RemovedCount);
+//		stat.setCount("RemovedMemo", this.memoRemover.RemovedCount);
 		stat.setCount("LexicalOptimization", this.LexicalOptimization);
 		stat.setCount("InterTerminalOptimization", this.InterTerminalOptimization);
 		stat.setCount("PredictionOptimization", this.PredictionOptimization);
 		
-//		for(int i = 0; i < this.definedExpressionList.size(); i++) {
-//			Peg e = this.definedExpressionList.ArrayValues[i];
-//			if(e instanceof PegMemo) {
-//				PegMemo me = (PegMemo)e;
-//				if(me.enableMemo && me.memoMiss > 32) {
-//					me.show();
-//				}
-//			}
-//		}
-	}
-
-	public ParsingStream newParserContext() {
-		return new TracingPackratParser(this, new StringSource(this, ""), 0);
-	}
-
-	public ParsingStream newParserContext(ParsingSource source) {
-		ParsingStream p = new TracingPackratParser(this, source);
-		if(Main.RecognitionOnlyMode) {
-			p.setRecognitionMode(true);
-		}
-		return p;
 	}
 
 	public final UList<String> makeList(String startPoint) {
@@ -280,7 +276,7 @@ public class Grammar {
 		UList<String> list = makeList(startPoint);
 		for(int i = 0; i < list.size(); i++) {
 			String name = list.ArrayValues[i];
-			PExpression e = this.getExpression(name);
+			ParsingExpression e = this.getExpression(name);
 			fmt.formatRule(name, e, sb);
 		}
 		fmt.formatFooter(sb);
@@ -290,9 +286,9 @@ public class Grammar {
 	public final void formatAll(GrammarFormatter fmt) {
 		StringBuilder sb = new StringBuilder();
 		fmt.formatHeader(sb);
-		UList<PegRule> list = this.getRuleList();
+		UList<ParsingRule> list = this.getRuleList();
 		for(int i = 0; i < list.size(); i++) {
-			PegRule r = list.ArrayValues[i];
+			ParsingRule r = list.ArrayValues[i];
 			fmt.formatRule(r.ruleName, r.expr, sb);
 		}
 		fmt.formatFooter(sb);
@@ -302,9 +298,9 @@ public class Grammar {
 	public final void simpleFormatAll(SimpleGrammarFormatter fmt) {
 		StringBuilder sb = new StringBuilder();
 		fmt.formatHeader(sb);
-		UList<PegRule> list = this.getRuleList();
+		UList<ParsingRule> list = this.getRuleList();
 		for(int i = 0; i < list.size(); i++) {
-			PegRule r = list.ArrayValues[i];
+			ParsingRule r = list.ArrayValues[i];
 			fmt.nonTerminalMap.put(r.ruleName, fmt.opList.size());
 			fmt.formatRule(r.ruleName, r.expr, sb);
 		}
@@ -312,421 +308,19 @@ public class Grammar {
 		System.out.println(sb.toString());
 	}
 	
-	final PExpression newNonTerminal(String text) {
-		return this.factory.newNonTerminal(this, text);
-	}
-	final PExpression newString(String text) {
-		return this.factory.newString(this, text);
-	}
-	final PExpression newAny(String t) {
-		return this.factory.newAny(this, t);
-	}	
-	public PExpression newByte(int ch, String t) {
-		return this.factory.newByte(this, ch, t);
-	}
-	final PExpression newCharacter(ParsingCharset u) {
-		return this.factory.newCharacter(this, u);
-	}
-	final PExpression newOptional(PExpression p) {
-		return this.factory.newOptional(this, p);
-	}
-	final PExpression newOneMore(PExpression p) {
-		return this.factory.newOneMore(this, p);
-	}
-	final PExpression newZeroMore(PExpression p) {
-		return this.factory.newZeroMore(this, p);
-	}
-	final PExpression newAnd(PExpression p) {
-		return this.factory.newAnd(this, p);
-	}
-	final PExpression newNot(PExpression p) {
-		return this.factory.newNot(this, p);
-	}
-	final PExpression newChoice(UList<PExpression> l) {
-		return this.factory.newChoice(this, l);
-	}
-	final PExpression newSequence(UList<PExpression> l) {
-		return this.factory.newSequence(this, l);
-	}
-	final PExpression newConstructor(String tagName, PExpression p) {
-		return this.factory.newConstructor(this, tagName, p);
-	}
-	final PExpression newJoinConstructor(String tagName, PExpression p) {
-		return this.factory.newJoinConstructor(this, tagName, p);
-	}
-	final PExpression newConnector(PExpression p, int index) {
-		return this.factory.newConnector(this, p, index);
-	}
-	final PExpression newTagging(String tag) {
-		return this.factory.newTagging(this, tag);
-	}
-	final PExpression newMessage(String msg) {
-		return this.factory.newMessage(this, msg);
-	}
-	final PExpression newMatch(PExpression e) {
-		return this.factory.newMatch(this, e);
-	}
-
-	final void addChoice(UList<PExpression> l, PExpression e) {
-		this.factory.addChoice(this, l, e);
-	}
-	final void addSequence(UList<PExpression> l, PExpression e) {
-		this.factory.addSequence(l, e);
-	}
-
-	public PExpression newDeprecated(String message, PExpression e) {
-		return new PDeprecated(message, e);
-	}
-
-}
-
-class PegRule {
-	ParsingSource source;
-	long     pos;
 	
-	String ruleName;
-	PExpression expr;
-	int length = 0;
-	boolean objectType;
-
-	public PegRule(ParsingSource source, long pos, String ruleName, PExpression e) {
-		this.source = source;
-		this.pos = pos;
-		this.ruleName = ruleName;
-		this.expr = e;
-		this.objectType = false;
-	}
-	@Override
-	public String toString() {
-		return this.ruleName + "=" + this.expr;
-	}
-	
-	Grammar getGrammar() {
-		return this.expr.base;
-	}
-	
-	void reportError(String msg) {
-		if(this.source != null) {
-			Main._PrintLine(this.source.formatErrorMessage("error", this.pos, msg));
-		}
-		else {
-			System.out.println("ERROR: " + msg);
-		}
-	}
-	void reportWarning(String msg) {
-		if(this.source != null) {
-			Main._PrintLine(this.source.formatErrorMessage("warning", this.pos, msg));
-		}
+	private ParsingModel model = new ParsingModel();
+	public final ParsingTag newTag(String tagName) {
+		return model.get(tagName);
 	}
 
-	class PegRuleAnnotation {
-		String key;
-		String value;
-		PegRuleAnnotation next;
-		PegRuleAnnotation(String key, String value, PegRuleAnnotation next) {
-			this.key = key;
-			this.value = value;
-			this.next = next;
-		}
+	public final ParsingTag newStartTag() {
+		return model.get("Text");
 	}
-
-	PegRuleAnnotation annotation;
-	public void addAnotation(String key, String value) {
-		this.annotation = new PegRuleAnnotation(key,value, this.annotation);
-	}
-	
-	public void testExample(ParsingStream context) {
-		PegRuleAnnotation a = this.annotation;
-		while(a != null) {
-			if(a.key.equals("example")) {
-				String msg = this.ruleName + " " + a.value;
-				ParsingSource s = new StringSource(this.getGrammar(), "string", 1, a.value);
-				context.resetSource(s);
-				context.parseChunk(this.ruleName);
-				if(context.isFailure() || context.hasByteChar()) {
-					msg = "[FAILED] " + msg;
-					if(Main.TestMode) {
-						Main._Exit(1, msg);
-					}
-					System.out.println(msg);
-				}
-				Main.printVerbose("Testing", this.ruleName + " " + a.value);
-			}
-			if(a.key.equals("bad-example")) {
-				String msg = this.ruleName + " " + a.value;
-				ParsingSource s = new StringSource(this.getGrammar(), "string", 1, a.value);
-				context.resetSource(s);
-				context.parseChunk(this.ruleName);
-				if(!context.isFailure() && !context.hasByteChar()) {
-					msg = "[FAILED] " + msg;
-					if(Main.TestMode) {
-						Main._Exit(1, msg);
-					}
-				}
-				Main.printVerbose("Testing", msg);
-			}
-			a = a.next;
-		}
-	}
-	
-	
 }
 
 class PEG4dGrammar extends Grammar {
-	static final int PRule        = ParsingTag.tagId("PRule");
-	static final int PImport      = ParsingTag.tagId("PImport");
-	static final int PAnnotation  = ParsingTag.tagId("PAnnotation");
-	static final int PString      = ParsingTag.tagId("PString");
-	static final int PByte        = ParsingTag.tagId("PByte");
-	static final int PCharacter   = ParsingTag.tagId("PCharacter");
-	static final int PAny         = ParsingTag.tagId("PAny");
-	static final int PNonTerminal = ParsingTag.tagId("PNonTerminal");
-	static final int PAnd         = ParsingTag.tagId("PAnd");
-	static final int PNot         = ParsingTag.tagId("PNot");
-	static final int POptional    = ParsingTag.tagId("POptional");
-	static final int POneMore     = ParsingTag.tagId("POneMore");
-	static final int PZeroMore    = ParsingTag.tagId("PZeroMore");
-	static final int PTimes       = ParsingTag.tagId("PTimes");
-	static final int PMatch       = ParsingTag.tagId("PMatch");
-	static final int PSequence    = ParsingTag.tagId("PSequence");
-	static final int PChoice      = ParsingTag.tagId("PChoice");
-	static final int PConstructor = ParsingTag.tagId("PConstructor");
-	static final int PConnector   = ParsingTag.tagId("PConnector");
-	static final int PLeftJoin    = ParsingTag.tagId("PLeftJoin");
-	static final int PTagging     = ParsingTag.tagId("PTagging");
-	static final int PMessage     = ParsingTag.tagId("PMessage");
-	static final int PDeprecated  = ParsingTag.tagId("PDeprecated");
-	static final int Name         = ParsingTag.tagId("Name");
-	static final int List         = ParsingTag.tagId("List");
-	static final int Integer      = ParsingTag.tagId("Integer");
-	static final int String       = ParsingTag.tagId("String");
-	static final int Text         = ParsingTag.tagId("Text");
-	static final int CommonError  = ParsingTag.tagId("error");
 	
-	static boolean performExpressionConstruction1(Grammar loading, ParsingStream context, ParsingObject po) {
-		//System.out.println("DEBUG? parsed: " + po);		
-		if(po.is(PEG4dGrammar.PRule)) {
-			if(po.size() > 3) {
-				System.out.println("DEBUG? parsed: " + po);		
-			}
-			String ruleName = po.textAt(0, "");
-			if(po.get(0).is(PEG4dGrammar.String)) {
-				ruleName = quote(ruleName);
-			}
-			PExpression e = toParsingExpression(loading, ruleName, po.get(1));
-			PegRule rule = new PegRule(po.getSource(), po.getSourcePosition(), ruleName, e);
-//			if(ruleName.equals("PrimaryType")) {
-//				System.out.println("DEBUG: " + po + "\n" + rule);
-//			}
-			loading.setRule(ruleName, rule);
-			if(po.size() >= 3) {
-				readAnnotations(rule, po.get(2));
-			}
-			return true;
-		}
-		if(po.is(PEG4dGrammar.PImport)) {
-			String filePath = searchPegFilePath(context, po.textAt(0, ""));
-			String ns = po.textAt(1, "");
-			loading.importGrammar(ns, filePath);
-			return true;
-		}
-		if(po.is(PEG4dGrammar.CommonError)) {
-			int c = po.getSource().byteAt(po.getSourcePosition());
-			System.out.println(po.formatSourceMessage("error", "syntax error: ascii=" + c));
-			return false;
-		}
-		System.out.println(po.formatSourceMessage("error", "PEG rule is required: " + po));
-		return false;
-	}
-	
-	private static void readAnnotations(PegRule rule, ParsingObject pego) {
-		for(int i = 0; i < pego.size(); i++) {
-			ParsingObject p = pego.get(i);
-			if(p.is(PEG4dGrammar.PAnnotation)) {
-				String key = p.textAt(0, "");
-				String value = p.textAt(1, "");
-				rule.addAnotation(key, value);
-			}
-		}
-	}
-
-	private static String searchPegFilePath(ParsingStream context, String filePath) {
-		String f = context.source.getFilePath(filePath);
-		if(new File(f).exists()) {
-			return f;
-		}
-		if(new File(filePath).exists()) {
-			return filePath;
-		}
-		return "lib/"+filePath;
-	}
-	
-	private static PExpression toParsingExpression(Grammar loading, String ruleName, ParsingObject node) {
-		PExpression e = toParsingExpressionImpl(loading, ruleName, node);
-		loading.DefinedExpressionSize += 1;
-		return e;
-	}
-	
-	private static String quote(String t) {
-		return "\"" + t + "\"";
-	}
-	
-	private static PExpression toParsingExpressionImpl(Grammar loading, String ruleName, ParsingObject pego) {
-		if(pego.is(PEG4dGrammar.PNonTerminal)) {
-			String symbol = pego.getText();
-			if(ruleName.equals(symbol)) {
-				PExpression e = loading.getExpression(ruleName);
-				if(e != null) {
-					// self-redefinition
-					return e;  // FIXME
-				}
-			}
-			if(symbol.equals("indent") && !loading.hasRule("indent")) {
-				loading.setRule("indent", new PIndent(loading, 0));
-			}
-			if(symbol.length() > 0 && !symbol.endsWith("_") && !loading.hasRule(symbol) && Grammar.PEG4d.hasRule(symbol)) { // comment
-				Main.printVerbose("implicit importing", symbol);
-				loading.setRule(symbol, Grammar.PEG4d.getRule(symbol));
-			}
-			return new PNonTerminal(loading, 0, symbol);
-		}
-		if(pego.is(PEG4dGrammar.String)) {
-			String t = quote(pego.getText());
-			if(loading.hasRule(t)) {
-				Main.printVerbose("direct inlining", t);
-				return loading.getExpression(t);
-			}
-			return loading.newString(ParsingCharset.unquoteString(pego.getText()));
-		}
-		if(pego.is(PEG4dGrammar.PString)) {
-			return loading.newString(ParsingCharset.unquoteString(pego.getText()));
-		}
-		if(pego.is(PEG4dGrammar.PCharacter)) {
-			ParsingCharset u = null;
-			if(pego.size() > 0) {
-				for(int i = 0; i < pego.size(); i++) {
-					ParsingObject o = pego.get(i);
-					if(o.is(PEG4dGrammar.List)) {
-						u = ParsingCharset.addText(u, o.textAt(0, ""), o.textAt(1, ""));
-					}
-					if(o.is(PEG4dGrammar.PCharacter)) {
-						u = ParsingCharset.addText(u, o.getText(), o.getText());
-					}
-					//System.out.println("u=" + u + " by " + o);
-				}
-			}
-			return loading.newCharacter(u);
-		}
-		if(pego.is(PEG4dGrammar.PByte)) {
-			String t = pego.getText();
-			if(t.startsWith("U+")) {
-				int c = ParsingCharset.hex(t.charAt(2));
-				c = (c * 16) + ParsingCharset.hex(t.charAt(3));
-				c = (c * 16) + ParsingCharset.hex(t.charAt(4));
-				c = (c * 16) + ParsingCharset.hex(t.charAt(5));
-				if(c < 128) {
-					return loading.newByte(c, java.lang.String.valueOf((char)c));					
-				}
-				String t2 = java.lang.String.valueOf((char)c);
-				return loading.newString(t2);
-			}
-			int c = ParsingCharset.hex(t.charAt(t.length()-2)) * 16 + ParsingCharset.hex(t.charAt(t.length()-1)); 
-			return loading.newByte(c, t);
-		}
-		if(pego.is(PEG4dGrammar.PAny)) {
-			return loading.newAny(pego.getText());
-		}
-		if(pego.is(PEG4dGrammar.PChoice)) {
-			UList<PExpression> l = new UList<PExpression>(new PExpression[pego.size()]);
-			for(int i = 0; i < pego.size(); i++) {
-				PExpression e = toParsingExpression(loading, ruleName, pego.get(i));
-				loading.addChoice(l, e);
-			}
-			return loading.newChoice(l);
-		}
-		if(pego.is(PEG4dGrammar.PSequence)) {
-			UList<PExpression> l = new UList<PExpression>(new PExpression[pego.size()]);
-			for(int i = 0; i < pego.size(); i++) {
-				PExpression e = toParsingExpression(loading, ruleName, pego.get(i));
-				loading.addSequence(l, e);
-			}
-			return loading.newSequence(l);
-		}
-		if(pego.is(PEG4dGrammar.PNot)) {
-			return loading.newNot(toParsingExpression(loading, ruleName, pego.get(0)));
-		}
-		if(pego.is(PEG4dGrammar.PAnd)) {
-			return loading.newAnd(toParsingExpression(loading, ruleName, pego.get(0)));
-		}
-		if(pego.is(PEG4dGrammar.POneMore)) {
-			return loading.newOneMore(toParsingExpression(loading, ruleName, pego.get(0)));
-		}
-		if(pego.is(PEG4dGrammar.PZeroMore)) {
-			return loading.newZeroMore(toParsingExpression(loading, ruleName, pego.get(0)));
-		}
-		if(pego.is(PEG4dGrammar.POptional)) {
-			return loading.newOptional(toParsingExpression(loading, ruleName, pego.get(0)));
-		}
-		if(pego.is(PEG4dGrammar.PTimes)) {
-			int n = ParsingCharset.parseInt(pego.textAt(0, ""), 1);
-			PExpression e = toParsingExpression(loading, ruleName, pego.get(0));
-			UList<PExpression> l = new UList<PExpression>(new PExpression[n]);
-			for(int i = 0; i < n; i++) {
-				loading.addSequence(l, e);
-			}
-			return loading.newSequence(l);
-		}
-		if(pego.is(PEG4dGrammar.PTagging)) {
-			return loading.newTagging(pego.getText());
-		}
-		if(pego.is(PEG4dGrammar.PMessage)) {
-			return loading.newMessage(pego.getText());
-		}
-		if(pego.is(PEG4dGrammar.PLeftJoin)) {
-			PExpression seq = toParsingExpression(loading, ruleName, pego.get(0));
-			return loading.newJoinConstructor(ruleName, seq);
-		}
-		if(pego.is(PEG4dGrammar.PConstructor)) {
-			PExpression seq = toParsingExpression(loading, ruleName, pego.get(0));
-			return loading.newConstructor(ruleName, seq);
-		}
-		if(pego.is(PEG4dGrammar.PConnector)) {
-			int index = -1;
-			if(pego.size() == 2) {
-				index = ParsingCharset.parseInt(pego.textAt(1, ""), -1);
-			}
-			return loading.newConnector(toParsingExpression(loading, ruleName, pego.get(0)), index);
-		}
-		if(pego.is(PEG4dGrammar.PMatch)) {
-			return loading.newMatch(toParsingExpression(loading, ruleName, pego.get(0)));
-		}
-		if(pego.is(PEG4dGrammar.PDeprecated)) {
-			return loading.newDeprecated(ParsingCharset.unquoteString(pego.textAt(0, "")),
-					toParsingExpression(loading, ruleName, pego.get(1)));
-		}
-//		if(pego.is("PExport")) {
-//		Peg seq = toParsingExpression(loadingGrammar, ruleName, pego.get(0));
-//		Peg o = loadingGrammar.newConstructor(ruleName, seq);
-//		return new PegExport(loadingGrammar, 0, o);
-//	}
-//	if(pego.is("PSetter")) {
-//		int index = -1;
-//		String indexString = pego.getText();
-//		if(indexString.length() > 0) {
-//			index = UCharset.parseInt(indexString, -1);
-//		}
-//		return loadingGrammar.newConnector(toParsingExpression(loadingGrammar, ruleName, pego.get(0)), index);
-//	}
-//		if(node.is("pipe")) {
-//			return new PegPipe(node.getText());
-//		}
-//		if(node.is("catch")) {
-//			return new PegCatch(null, toPeg(node.get(0)));
-//		}
-		Main._Exit(1, "undefined peg: " + pego);
-		return null;
-	}
-
 	PEG4dGrammar() {
 		super(new GrammarFactory(), "PEG4d");
 		this.optimizationLevel = 0;
@@ -734,194 +328,183 @@ class PEG4dGrammar extends Grammar {
 		this.factory.setGrammar("p4d", this);
 	}
 	
-	@Override
-	public ParsingStream newParserContext(ParsingSource source) {
-		return new TracingPackratParser(this, source, 0);  // best parser
+	// Definiton of PEG4d 	
+	private final ParsingExpression t(String token) {
+		return ParsingExpression.newString(token);
+	}
+	private final ParsingExpression c(String text) {
+		return ParsingExpression.newCharacter(text);
+	}
+	private final ParsingExpression P(String ruleName) {
+		return newNonTerminal(ruleName);
+	}
+	private final ParsingExpression Optional(ParsingExpression e) {
+		return ParsingExpression.newOption(e);
+	}
+	private final ParsingExpression ZeroMore(ParsingExpression e) {
+		return ParsingExpression.newRepetition(e);
+	}
+	private final ParsingExpression ZeroMore(ParsingExpression ... elist) {
+		return ParsingExpression.newRepetition(Sequence(elist));
+	}
+	private final ParsingExpression Sequence(ParsingExpression ... elist) {
+		UList<ParsingExpression> l = new UList<ParsingExpression>(new ParsingExpression[8]);
+		for(ParsingExpression e : elist) {
+			ParsingExpression.addSequence(l, e);
+		}
+		return ParsingExpression.newSequence(l);
+	}
+	private final ParsingExpression Choice(ParsingExpression ... elist) {
+		UList<ParsingExpression> l = new UList<ParsingExpression>(new ParsingExpression[8]);
+		for(ParsingExpression e : elist) {
+			ParsingExpression.addChoice(l, e);
+		}
+		return ParsingExpression.newChoice(l);
+	}
+	private final ParsingExpression Not(ParsingExpression e) {
+		return ParsingExpression.newNot(e);
+	}
+	private final ParsingExpression Tag(int tagId) {
+		return ParsingExpression.newTagging(newTag(ParsingTag.tagName(tagId)));
+	}
+	private final ParsingExpression Constructor(ParsingExpression ... elist) {
+		UList<ParsingExpression> l = new UList<ParsingExpression>(new ParsingExpression[8]);
+		for(ParsingExpression e : elist) {
+			ParsingExpression.addSequence(l, e);
+		}
+		return ParsingExpression.newConstructor(ParsingExpression.newSequence(l));
+	}
+	private ParsingExpression LeftJoin(ParsingExpression ... elist) {
+		UList<ParsingExpression> l = new UList<ParsingExpression>(new ParsingExpression[8]);
+		for(ParsingExpression e : elist) {
+			ParsingExpression.addSequence(l, e);
+		}
+		return ParsingExpression.newJoinConstructor(ParsingExpression.newSequence(l));
+	}
+	private ParsingExpression Link(ParsingExpression e) {
+		return ParsingExpression.newConnector(e, -1);
+	}
+	
+	private ParsingExpression Link(int index, ParsingExpression e) {
+		return ParsingExpression.newConnector(e, index);
 	}
 
-	// Definiton of PEG4d 	
-	private final PExpression t(String token) {
-		return this.newString(token);
+	private ParsingExpression Any() {
+		return ParsingExpression.newAny(".");
 	}
-	private final PExpression c(String text) {
-		return new PCharacter(this, 0, ParsingCharset.newParsingCharset(text));
-	}
-	private final PExpression P(String ruleName) {
-		return new PNonTerminal(this, 0, ruleName);
-	}
-	private final PExpression Optional(PExpression e) {
-		return new POptional(this, 0, e);
-	}
-	private final PExpression zero(PExpression e) {
-		return new PRepetition(this, 0, e, 0);
-	}
-	private final PExpression zero(PExpression ... elist) {
-		return new PRepetition(this, 0, Sequence(elist), 0);
-	}
-	private final PExpression one(PExpression e) {
-		return new PRepetition(this, 0, e, 1);
-	}
-	private final PExpression one(PExpression ... elist) {
-		return new PRepetition(this, 0, Sequence(elist), 1);
-	}
-	private final PExpression Sequence(PExpression ... elist) {
-		UList<PExpression> l = new UList<PExpression>(new PExpression[8]);
-		for(PExpression e : elist) {
-			this.addSequence(l, e);
-		}
-		return new PSequence(this, 0, l);
-	}
-	private final PExpression Choice(PExpression ... elist) {
-		UList<PExpression> l = new UList<PExpression>(new PExpression[8]);
-		for(PExpression e : elist) {
-			this.addChoice(l, e);
-		}
-		return new PChoice(this, 0, l);
-	}
-	private final PExpression Not(PExpression e) {
-		return new PNot(this, 0, e);
-	}
-	private final PExpression Tag(int tagId) {
-		return newTagging(ParsingTag.tagName(tagId));
-	}
-	private final PExpression Constructor(PExpression ... elist) {
-		UList<PExpression> l = new UList<PExpression>(new PExpression[8]);
-		for(PExpression e : elist) {
-			this.addSequence(l, e);
-		}
-		return new PConstructor(this, 0, false, null, l);
-	}
-	private PExpression LeftJoin(PExpression ... elist) {
-		UList<PExpression> l = new UList<PExpression>(new PExpression[8]);
-		for(PExpression e : elist) {
-			this.addSequence(l, e);
-		}
-		return new PConstructor(this, 0, true, null, l);
-	}
-	private PExpression Link(PExpression e) {
-		return new PConnector(this, 0, e, -1);
-	}
-	private PExpression Link(int index, PExpression e) {
-		return new PConnector(this, 0, e, index);
-	}
-	
-	private PExpression Deprecated(String msg, PExpression e) {
-		return this.newDeprecated(msg, e);
-	}
-	
+
 	public Grammar loadPEG4dGrammar() {
-		PExpression Any = newAny(".");
-		PExpression _NEWLINE = c("\\r\\n");
-		PExpression _S = Choice(c(" \\t\\r\\n"), t("\u3000"));
-		PExpression _DIGIT = c("0-9");
-		PExpression _HEX = c("0-9A-Fa-f");
-		
-		PExpression _LETTER = c("A-Za-z_");
-		PExpression _W = c("A-Za-z0-9_");
-		
-		this.setRule("DIGIT", _DIGIT);
-		this.setRule("S", _S);
-		this.setRule("LETTER", _LETTER);		
-		this.setRule("W", _W);
-		this.setRule("NAME", Sequence(_LETTER, zero(_W)));
+//		ParsingExpression Any = ParsingExpression.newAny(".");
+		this.setRule("EOL", c("\\r\\n"));
+		this.setRule("EOT", Not(Any()));
+		this.setRule("DIGIT", c("0-9"));
+		this.setRule("S", Choice(c(" \\t\\r\\n"), t("\u3000")));
+		this.setRule("LETTER", c("A-Za-z_"));		
+		this.setRule("W", c("A-Za-z0-9_"));
+		this.setRule("NAME", Sequence(P("LETTER"), ZeroMore(P("W"))));
 		this.setRule("HEX", c("0-9A-Fa-f"));
 
-		PExpression _INTEGER = one(_DIGIT);
+		this.setRule("INT", Sequence(P("DIGIT"), ZeroMore(P("DIGIT"))));
 		this.setRule("COMMENT", 
 			Choice(
-				Sequence(t("/*"), zero(Not(t("*/")), Any), t("*/")),
-				Sequence(t("//"), zero(Not(_NEWLINE), Any), _NEWLINE)
+				Sequence(t("/*"), ZeroMore(Not(t("*/")), Any()), t("*/")),
+				Sequence(t("//"), ZeroMore(Not(P("EOL")), Any()), P("EOL"))
 			)
 		);
-		this.setRule("_", zero(Choice(one(_S), P("COMMENT"))));
-		PExpression Spacing = P("_");
+		this.setRule("_", ZeroMore(Choice(P("S"), P("COMMENT"))));
 		
-		this.setRule("Name",       Constructor(_LETTER, zero(_W), Tag(Name)));
-		this.setRule("DotName",    Constructor(_LETTER, zero(c("A-Za-z0-9_.")), Tag(Name)));
-		this.setRule("HyphenName_", Constructor(_LETTER, zero(Choice(_W, t("-"))), Tag(Name)));
-		this.setRule("Integer",    Constructor(_INTEGER, Tag(Integer)));
+		this.setRule("Name",       Constructor(P("LETTER"), ZeroMore(P("W")), Tag(ParsingTag.Name)));
+		this.setRule("DotName",    Constructor(P("LETTER"), ZeroMore(c("A-Za-z0-9_.")), Tag(ParsingTag.Name)));
+		this.setRule("HyphenName_", Constructor(P("LETTER"), ZeroMore(Choice(P("W"), t("-"))), Tag(ParsingTag.Name)));
+		this.setRule("Integer",    Constructor(P("INT"), Tag(ParsingTag.Integer)));
 		
 		this.setRule("NonTerminal_", 
 			Constructor(
-				_LETTER, 
-				zero(c("A-Za-z0-9_:")), 
-				Tag(PNonTerminal)
+				P("LETTER"), 
+				ZeroMore(c("A-Za-z0-9_:")), 
+				Tag(PEG4d.NonTerminal)
 			)
 		);
-		PExpression StringContent  = zero(Choice(
-			t("\\'"), t("\\\\"), Sequence(Not(t("'")), Any)
+		{
+			ParsingExpression StringContent  = ZeroMore(Choice(
+				t("\\'"), t("\\\\"), Sequence(Not(t("'")), Any())
+			));
+			ParsingExpression StringContent2 = ZeroMore(Choice(
+				t("\\\""), t("\\\\"), Sequence(Not(t("\"")), Any())
+			));
+			this.setRule("String", 
+				Sequence(t("\""), Constructor(StringContent2, Tag(ParsingTag.String)), t("\""))
+			);
+			this.setRule("SingleQuotedString", 
+				Sequence(t("'"),  Constructor(StringContent, Tag(PEG4d.CharacterSequence)), t("'"))
+			);
+		}
+		ParsingExpression ValueContent = ZeroMore(Choice(
+			t("\\`"), t("\\\\"), Sequence(Not(t("`")), Any())
 		));
-		PExpression StringContent2 = zero(Choice(
-				t("\\\""), t("\\\\"), Sequence(Not(t("\"")), Any)
-		));
-		this.setRule("String", 
-			Sequence(t("\""), Constructor(StringContent2, Tag(String)), t("\""))
-		);
-		this.setRule("SingleQuotedString", 
-			Sequence(t("'"),  Constructor(StringContent, Tag(PString)), t("'"))
-		);
-		PExpression ValueContent = zero(Choice(
-			t("\\`"), t("\\\\"), Sequence(Not(t("`")), Any)
-		));
-		PExpression _Message = Sequence(t("`"), Constructor(ValueContent, Tag(PMessage)), t("`"));
-		PExpression _Char2 = Choice( 
-			Sequence(t("\\u"), _HEX, _HEX, _HEX, _HEX),
-			Sequence(t("\\x"), _HEX, _HEX),
+		ParsingExpression _Message = Sequence(t("`"), Constructor(ValueContent, Tag(PEG4d.Value)), t("`"));
+		this.setRule("CHARCONTET_", Choice( 
+			Sequence(t("\\u"), P("HEX"), P("HEX"), P("HEX"), P("HEX")),
+			Sequence(t("\\x"), P("HEX"), P("HEX")),
 			t("\\n"), t("\\t"), t("\\\\"), t("\\r"), t("\\v"), t("\\f"), t("\\-"), t("\\]"), 
-			Sequence(Not(t("]")), Any)
-		);
-		PExpression _CharChunk = Sequence(
-			Constructor (_Char2, Tag(PCharacter)), 
+			Sequence(Not(t("]")), Any())
+		));
+		ParsingExpression _CharChunk = Sequence(
+			Constructor (P("CHARCONTET_"), Tag(PEG4d.Character)), 
 			Optional(
-				LeftJoin(t("-"), Link(Constructor(_Char2, Tag(PCharacter))), Tag(List))
+				LeftJoin(t("-"), Link(Constructor(P("CHARCONTET_"), Tag(PEG4d.Character))), Tag(ParsingTag.List))
 			)
 		);
-		this.setRule("Charcter_", Sequence(t("["), Constructor(zero(Link(_CharChunk)), Tag(PCharacter)), t("]")));
+		this.setRule("Charcter_", Sequence(t("["), Constructor(ZeroMore(Link(_CharChunk)), Tag(PEG4d.Character)), t("]")));
 
-		PExpression _Any = Constructor(t("."), Tag(PAny));
-		PExpression _Tagging = Sequence(t("#"), Constructor(one(c("A-Za-z0-9_."), Tag(PTagging))));
-		PExpression _Byte = Constructor(t("0x"), _HEX, _HEX, Tag(PByte));
-		PExpression _Unicode = Constructor(t("U+"), _HEX, _HEX, _HEX, _HEX, Tag(PByte));
-		PExpression ConstructorBegin = Choice(t("{"), t("<{"), t("<<"), t("8<"));
-		PExpression Connector  = Choice(t("@"), t("^"));
-		PExpression ConstructorEnd   = Choice(t("}>"), t("}"), t(">>"), t(">8"));
+		ParsingExpression _Any = Constructor(t("."), Tag(PEG4d.Any));
+		ParsingExpression _Tagging = Sequence(t("#"), Constructor(c("A-Za-z0-9"), ZeroMore(c("A-Za-z0-9_.")), Tag(PEG4d.Tagging)));
+		ParsingExpression _Byte = Constructor(t("0x"), P("HEX"), P("HEX"), Tag(PEG4d.Byte));
+		ParsingExpression _Unicode = Constructor(t("U+"), P("HEX"), P("HEX"), P("HEX"), P("HEX"), Tag(PEG4d.Byte));
+		ParsingExpression ConstructorBegin = Choice(t("{"), t("<{"), t("<<"), t("8<"));
+		ParsingExpression Connector  = Choice(t("@"), t("^"));
+		ParsingExpression ConstructorEnd   = Choice(t("}>"), t("}"), t(">>"), t(">8"));
 
 		this.setRule("Constructor_", Constructor(
 			ConstructorBegin, 
 			Choice(
-				Sequence(Connector, _S, Tag(PLeftJoin)), 
-				Tag(PConstructor)
+				Sequence(Connector, P("S"), Tag(PEG4d.LeftJoin)), 
+				Tag(PEG4d.Constructor)
 			), 
-			Spacing, 
-			Link(P("Expr_")), 
-			Spacing,
+			P("_"), 
+			Optional(Sequence(Link(P("Expr_")), P("_"))),
 			ConstructorEnd
 		));
-//		PExpression _LazyFunc = Constructor(
-//			t("<lazy"), 
-//			_WS,
-//			set(n("NonTerminal_")),
-//			Spacing,
-//			t(">"),
-//			Tag("#PLazyNonTerminal")
-//		);
-		PExpression _MatchFunc = Constructor(
-			t("<match"), _S,
-			Link(P("Expr_")), Spacing, t(">"),
-			Tag(PMatch)
+		setRule("PIPE_", Optional(t("|")));
+		setRule("Func_", 
+			Sequence(t("<"), Constructor(
+				Choice(
+					Sequence(t("debug"),   P("S"), Link(P("Expr_")), Tag(PEG4d.Debug)),
+					Sequence(t("memo"),   P("S"), Link(P("Expr_")), P("_"), t(">"), Tag(PEG4d.Memo)),
+					Sequence(t("match"),   P("S"), Link(P("Expr_")), P("_"), t(">"), Tag(PEG4d.Match)),
+					Sequence(t("fail"),   P("S"), Link(P("SingleQuotedString")), P("_"), t(">"), Tag(PEG4d.Fail)),
+					Sequence(t("catch"), Tag(PEG4d.Catch)),
+					Sequence(t("if"), P("S"), Optional(t("!")), Link(P("Name")), Tag(PEG4d.If)),
+					Sequence(t("with"),  P("S"), Link(P("Name")), P("S"), Link(P("Expr_")), Tag(PEG4d.With)),
+					Sequence(t("without"), P("S"), Link(P("Name")), P("S"), Link(P("Expr_")), Tag(PEG4d.Without)),
+					Sequence(t("block"), Optional(Sequence(P("S"), Link(P("Expr_")))), Tag(PEG4d.Block)),
+					Sequence(t("indent"), Tag(PEG4d.Indent)),
+//					Sequence(t("choice"), Tag(PEG4d.Choice)),
+					Sequence(t("isa"), P("S"), Link(P("Name")), Tag(PEG4d.Isa)),
+					Sequence(t("name"),  P("S"), Link(P("Name")), P("S"), Link(P("Expr_")), Tag(PEG4d.Name)),
+					Sequence(P("PIPE_"), t("append-choice"), Tag(PEG4d.Choice)),
+					Sequence(P("PIPE_"), t("stringfy"), Tag(PEG4d.Stringfy)),
+					Sequence(P("PIPE_"), t("apply"), P("S"), Link(P("Expr_")), Tag(PEG4d.Apply))
+				)
+			), P("_"), t(">"))
 		);
-		PExpression _DeprecatedFunc = Constructor(
-			t("<deprecated"), _S, Link(P("SingleQuotedString")), _S,
-			Link(P("Expr_")), Spacing, t(">"),
-			Tag(PDeprecated)
-		);
+		
 		setRule("Term_", 
 			Choice(
-				P("SingleQuotedString"), P("Charcter_"), _Any, _Message, _Tagging, _Byte, _Unicode,
-				Sequence(t("("), Spacing, P("Expr_"), Spacing, t(")")),
-				P("Constructor_"), P("NonTerminal_"), 
-				P("String"), 
-				/*_LazyFunc,*/ _MatchFunc, _DeprecatedFunc
+				P("SingleQuotedString"), P("Charcter_"), P("Func_"),  
+				_Any, _Message, _Tagging, _Byte, _Unicode,
+				Sequence(t("("), P("_"), P("Expr_"), P("_"), t(")")),
+				P("Constructor_"), P("String"), P("NonTerminal_") 
 			)
 		);
 		this.setRule("SuffixTerm_", Sequence(
@@ -929,10 +512,10 @@ class PEG4dGrammar extends Grammar {
 			Optional(
 				LeftJoin(
 					Choice(
-						Sequence(t("*"), Tag(PZeroMore)), 
-						Sequence(t("+"), Tag(POneMore)), 
-						Sequence(t("?"), Tag(POptional)),
-						Sequence(Connector, Optional(Link(1, P("Integer"))), Tag(PConnector))
+						Sequence(t("*"), Optional(Link(1, P("Integer"))), Tag(PEG4d.Repetition)), 
+						Sequence(t("+"), Tag(PEG4d.OneMoreRepetition)), 
+						Sequence(t("?"), Tag(PEG4d.Optional)),
+						Sequence(Connector, Optional(Link(1, P("Integer"))), Tag(PEG4d.Connector))
 					)
 				)
 			)
@@ -941,29 +524,29 @@ class PEG4dGrammar extends Grammar {
 		this.setRule("Predicate_", Choice(
 				Constructor(
 						Choice(
-								Sequence(t("&"), Tag(PAnd)),
-								Sequence(t("!"), Tag(PNot)),
-								Sequence(t("@["), Spacing, Link(1, P("Integer")), Spacing, t("]"), Tag(PConnector)),							
-								Sequence(t("@"), Tag(PConnector))
+								Sequence(t("&"), Tag(PEG4d.And)),
+								Sequence(t("!"), Tag(PEG4d.Not)),
+								Sequence(t("@["), P("_"), Link(1, P("Integer")), P("_"), t("]"), Tag(PEG4d.Connector)),							
+								Sequence(t("@"), Tag(PEG4d.Connector))
 						), 
 						Link(0, P("SuffixTerm_"))
 				), 
 				P("SuffixTerm_")
 		));
-		PExpression _notRule = Not(Choice(
-				P("Rule_"), 
-				P("Import_")
-		));
+		this.setRule("NOTRULE_", Not(Choice(P("Rule_"), P("Import_"))));
 		this.setRule("Sequence_", Sequence(
 				P("Predicate_"), 
 				Optional(
 					LeftJoin(
-						one(
-							Spacing, 
-							_notRule,
+						P("_"), 
+						P("NOTRULE_"),
+						Link(P("Predicate_")),
+						ZeroMore(
+							P("_"), 
+							P("NOTRULE_"),
 							Link(P("Predicate_"))
 						),
-						Tag(PSequence) 
+						Tag(PEG4d.Sequence) 
 					)
 				)
 		));
@@ -972,11 +555,13 @@ class PEG4dGrammar extends Grammar {
 				P("Sequence_"), 
 				Optional(
 					LeftJoin(
-						one(
-							Spacing, t("/"), Spacing, 
+						P("_"), t("/"), P("_"), 
+						Link(P("Sequence_")), 
+						ZeroMore(
+							P("_"), t("/"), P("_"), 
 							Link(P("Sequence_"))
 						),
-						Tag(PChoice) 
+						Tag(PEG4d.Choice) 
 					)
 				)
 			)
@@ -986,17 +571,17 @@ class PEG4dGrammar extends Grammar {
 				t("["),
 				Constructor(
 					Link(P("Name")),
-					zero(
-						Spacing,
+					ZeroMore(
+						P("_"),
 						Link(P("Name"))
 					),
-					Tag(List) 
+					Tag(ParsingTag.List) 
 				),
 				t("]")
 			)
 		);
 		this.setRule("DOC_", Sequence(
-			zero(Not(t("]")), Not(t("[")), Any),
+			ZeroMore(Not(t("]")), Not(t("[")), Any()),
 			Optional(Sequence(t("["), P("DOC_"), t("]"), P("DOC_") ))
 		));
 		
@@ -1006,64 +591,71 @@ class PEG4dGrammar extends Grammar {
 				Constructor(
 					Link(P("HyphenName_")),
 					t(":"), 
-					Spacing, 
+					P("_"), 
 					Link(
 						Constructor(
 							P("DOC_"),
-							Tag(Text) 
+							Tag(ParsingTag.Text) 
 						)
 					),
-					Tag(PAnnotation) 
+					Tag(PEG4d.Annotation) 
 				),
 				t("]"),
-				Spacing
+				P("_")
 			)
 		);
 		this.setRule("Annotations_",
 				Constructor(
-					one(Link(P("Annotation_"))),
-					Tag(List) 
+					Link(P("Annotation_")),
+					ZeroMore(Link(P("Annotation_"))),
+					Tag(ParsingTag.List) 
 				)
 		);
 		this.setRule("Rule_", 
 			Constructor(
-				Link(0, Choice(P("Name"), P("String"))), Spacing, 
-				Optional(Sequence(Link(3, P("Param_")), Spacing)),
-				Optional(Sequence(Link(2, P("Annotations_")), Spacing)),
-				t("="), Spacing, 
+				Link(0, Choice(P("Name"), P("String"))), P("_"), 
+				Optional(Sequence(Link(3, P("Param_")), P("_"))),
+				Optional(Sequence(Link(2, P("Annotations_")), P("_"))),
+				t("="), P("_"), 
 				Link(1, P("Expr_")),
-				Tag(PRule) 
+				Tag(PEG4d.Rule) 
 			)
 		);
 		this.setRule("Import_", Constructor(
 			t("import"), 
-			Tag(PImport), 
-			_S, 
-			Choice(Link(P("SingleQuotedString")), P("DotName")), 
+			Tag(PEG4d.Import), 
+			P("S"), 
+			Link(Choice(P("SingleQuotedString"), P("DotName"))), 
 			Optional(
-				Sequence(_S, t("as"), _S, Link(P("Name")))
+				Sequence(P("S"), t("as"), P("S"), Link(P("Name")))
 			)
 		));
 		this.setRule("Chunk", Sequence(
-			Spacing, 
+			P("_"), 
 			Choice(
 				P("Rule_"), 
 				P("Import_")
 			), 
-			Spacing, 
-			Optional(Sequence(t(";"), Spacing))
+			P("_"), 
+			Optional(Sequence(t(";"), P("_")))
 		));
 		this.setRule("File", Sequence(
-			Spacing, 
+			P("_"), 
 			Choice(
 				P("Rule_"), 
 				P("Import_")
 			), 
-			Spacing, 
-			Optional(Sequence(t(";"), Spacing)) 
+			P("_"), 
+			Optional(Sequence(t(";"), P("_"))) 
 		));
-		this.verify(/*null*/);
+		this.verifyRules(/*null*/);
 		return this;
+	}
+	
+	private void setRule(String ruleName, ParsingExpression e) {
+		ParsingRule rule = new ParsingRule(this, ruleName, null, null);
+		rule.expr = e;
+		this.setRule(ruleName, rule);
 	}
 
 }

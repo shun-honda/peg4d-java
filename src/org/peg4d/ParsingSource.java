@@ -12,7 +12,7 @@ public abstract class ParsingSource {
 	Grammar   peg;
 	private String    fileName;
 	protected long    startLineNum = 1;
-	Stat      stat = null;
+	ParsingStat      stat = null;
 	
 	public ParsingSource(Grammar peg, String fileName, long linenum) {
 		this.peg = peg;
@@ -88,49 +88,16 @@ public abstract class ParsingSource {
 				break;
 			}
 		}
-		return this.substring(startPosition, i);
+		String indent = this.substring(startPosition, i);
+		return indent;
 	}
 
-	public final String getLineTextAt(long pos) {
-		long startIndex = this.getLineStartPosition(pos);
-		long endIndex = startIndex;
-		while(endIndex < this.length()) {
-			int ch = byteAt(endIndex);
-			if(ch == '\n') {
-				break;
-			}
-			endIndex = endIndex + 1;
-		}
-		return this.substring(startIndex, endIndex);
-	}
-	
-
-	public final String getMarker(long pos) {
-		long startIndex = this.getLineStartPosition(pos);
-		String markerLine = "";
-		long i = startIndex;
-		while(i < pos) {
-			int ch = byteAt(i);
-			if(ch == '\n') {
-				break;
-			}
-			if(ch == '\t') {
-				markerLine = markerLine + "\t";
-			}
-			else {
-				markerLine = markerLine + " ";
-			}
-			i = i + 1;
-		}
-		return markerLine + "^";
+	public final String formatPositionMessage(String messageType, long pos, String message) {
+		return "(" + this.getResourceName() + ":" + this.linenum(pos) + ") [" + messageType +"] " + message;
 	}
 
-	public final String formatErrorHeader(String error, long pos, String message) {
-		return "(" + this.getResourceName() + ":" + this.linenum(pos) + ") [" + error +"] " + message;
-	}
-
-	public final String formatErrorMessage(String errorType, long pos, String msg) {
-		return this.formatErrorHeader(errorType, pos, msg) + this.getTextAround(pos, "\n ");
+	public final String formatPositionLine(String messageType, long pos, String message) {
+		return this.formatPositionMessage(messageType, pos, message) + this.getTextAround(pos, "\n ");
 	}
 	
 	public final String getTextAround(long pos, String delim) {

@@ -1,0 +1,14 @@
+// PEG4d: PEG's unique characteristic
+// @test a
+// @test aaa
+// @test! aaaaa
+
+File
+	= { #Empty } // dummy
+
+A
+	[example: a]
+	[example: aaa]
+	[bad-example: aaaaa]
+	= 'a' A 'a' / 'a'
+
