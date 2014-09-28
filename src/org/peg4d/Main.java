@@ -96,7 +96,7 @@ public class Main {
 			SimpleGrammarFormatter fmt = loadSimpleFormatter(PEGFormatter);
 			peg.simpleFormatAll(fmt);
 			if (InputFileName == null) {
-				fmt.writeByteCode("byteCode.bin");
+				fmt.writeByteCode("byteCode.bin", GrammarFile);
 				System.out.println("ByteCode was generated !");
 				return;
 			}

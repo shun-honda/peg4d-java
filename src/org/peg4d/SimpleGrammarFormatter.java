@@ -22,9 +22,38 @@ public class SimpleGrammarFormatter extends GrammarFormatter {
 		super(peg, sb);
 	}
 	
-	public void writeByteCode(String fileName) {
-		byte[] byteCode = new byte[8192];
+	public void writeByteCode(String fileName, String grammerfileName) {
+		byte[] byteCode = new byte[opList.size() * 16];
 		int pos = 0;
+		// Version of the specification (4 byte)
+		int version = 1;
+		byteCode[pos] = (byte) (0x000000ff & (version));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (version >> 8));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (version >> 16));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (version >> 24));
+		pos++;
+		// Length of grammerfileName (4 byte)
+		int fileNamelen = grammerfileName.length();
+		byteCode[pos] = (byte) (0x000000ff & (fileNamelen));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (fileNamelen >> 8));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (fileNamelen >> 16));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (fileNamelen >> 24));
+		pos++;
+		// GrammerfileName (n byte)
+		byte[] name = grammerfileName.getBytes();
+		for (int i = 0; i < fileNamelen; i++) {
+			byteCode[pos] = name[i];
+			pos++;
+		}
+		int bytecodelen_pos = pos;
+		pos = pos + 8;
+		// byte code (m byte)
 		for(int i = 0; i < opList.size(); i++) {
 			Opcode op = opList.ArrayValues[i];
 			byteCode[pos] = (byte) op.opcode.ordinal();
@@ -38,17 +67,39 @@ public class SimpleGrammarFormatter extends GrammarFormatter {
 			byteCode[pos] = (byte) (0x000000ff & (op.ndata >> 24));
 			pos++;
 			if(op.bdata != null) {
-			int j = 0;
+				int j = 0;
+				byteCode[pos] = (byte) op.bdata.length;
+				pos++;
 				while (j < op.bdata.length) {
 					byteCode[pos] = op.bdata[j];
 					j++;
 					pos++;
 				}
 			}
-			byteCode[pos] = (byte) 0;
-			pos++;
+			else {
+				byteCode[pos] = 0;
+				pos++;
+			}
 		}
-		byteCode[pos] = (byte) 128;
+		// Length of byte code (8 byte) 
+		long byteCodelength = pos - (bytecodelen_pos + 8);
+		pos = bytecodelen_pos;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 8));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 16));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 24));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 32));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 40));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 48));
+		pos++;
+		byteCode[pos] = (byte) (0x000000ff & (byteCodelength >> 56));
+				
 		try {
 			FileOutputStream fos = new FileOutputStream(fileName);
 			BufferedOutputStream bos = new BufferedOutputStream(fos);
