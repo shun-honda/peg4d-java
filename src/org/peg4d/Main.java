@@ -105,6 +105,9 @@ public class Main {
 			}
 			ParsingSource source = Main.loadSource(peg, InputFileName);
 			SimpleVmParsingContext c = new SimpleVmParsingContext(source, 0, 1024, null);
+			c.emptyTag = peg.newStartTag();
+			ParsingObject po = new ParsingObject(c.emptyTag, c.source, 0);
+			c.left = po;
 			SimpleVirtualMachine.run(c, 1, ((SimpleCodeGenerator) fmt).opList.ArrayValues);
 			if(c.left != null) {
 				System.out.println(c.left.toString());
