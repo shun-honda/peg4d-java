@@ -82,7 +82,7 @@ public class SimpleGrammarFormatter extends GrammarFormatter {
 			}
 		}
 		// Length of byte code (8 byte) 
-		long byteCodelength = pos - (bytecodelen_pos + 8);
+		long byteCodelength = opList.size();
 		pos = bytecodelen_pos;
 		byteCode[pos] = (byte) (0x000000ff & (byteCodelength));
 		pos++;

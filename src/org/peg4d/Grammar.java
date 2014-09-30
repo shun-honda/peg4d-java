@@ -299,10 +299,22 @@ public class Grammar {
 		StringBuilder sb = new StringBuilder();
 		fmt.formatHeader(sb);
 		UList<ParsingRule> list = this.getRuleList();
+		int flag = 0;
 		for(int i = 0; i < list.size(); i++) {
-			ParsingRule r = list.ArrayValues[i];
-			fmt.nonTerminalMap.put(r.ruleName, fmt.opList.size());
-			fmt.formatRule(r.ruleName, r.expr, sb);
+			if(list.ArrayValues[i].ruleName.equals("File")) {
+				ParsingRule r = list.ArrayValues[i];
+				fmt.nonTerminalMap.put(r.ruleName, fmt.opList.size());
+				fmt.formatRule(r.ruleName, r.expr, sb);
+				flag = i;
+				break;
+			}
+		}
+		for(int i = 0; i < list.size(); i++) {
+			if(flag != i) {
+				ParsingRule r = list.ArrayValues[i];
+				fmt.nonTerminalMap.put(r.ruleName, fmt.opList.size());
+				fmt.formatRule(r.ruleName, r.expr, sb);
+			}
 		}
 		fmt.formatFooter(sb);
 		System.out.println(sb.toString());

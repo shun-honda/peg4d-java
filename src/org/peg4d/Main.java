@@ -32,6 +32,9 @@ public class Main {
 
 	// -f format
 	private static String PEGFormatter = null;  // default
+	
+	// -b bytecode generate
+	private static String ByteCodeFileName = null;
 
 	// -i
 	private static boolean ShellMode = false;
@@ -95,8 +98,8 @@ public class Main {
 		if(PEGFormatter != null) {
 			SimpleGrammarFormatter fmt = loadSimpleFormatter(PEGFormatter);
 			peg.simpleFormatAll(fmt);
-			if (InputFileName == null) {
-				fmt.writeByteCode("byteCode.bin", GrammarFile);
+			if (ByteCodeFileName != null) {
+				fmt.writeByteCode(ByteCodeFileName, GrammarFile);
 				System.out.println("ByteCode was generated !");
 				return;
 			}
@@ -111,7 +114,7 @@ public class Main {
 			}
 			return;
 		}
-		else {
+		/*else {
 			GrammarFormatter fmt = loadGrammarFormatter(PEGFormatter);
 			StringBuilder sb = new StringBuilder();
 			fmt.formatHeader(sb);
@@ -122,7 +125,7 @@ public class Main {
 			}
 			fmt.formatFooter(sb);
 			System.out.println(sb.toString());
-		}
+		}*/
 		if(InputFileName != null) {
 			loadInputFile(peg, InputFileName);
 		}
@@ -156,6 +159,12 @@ public class Main {
 			}
 			else if ((argument.equals("-f") || argument.equals("--format")) && (index < args.length)) {
 				PEGFormatter = args[index];
+				index = index + 1;
+			}
+			else if (argument.equals("-b")) {
+				GrammarFile = args[index];
+				index = index + 1;
+				ByteCodeFileName = args[index];
 				index = index + 1;
 			}
 			else if(argument.startsWith("-M")) {
