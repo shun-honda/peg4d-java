@@ -177,8 +177,8 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		dephth++;
 		e.inner.visit(this);
 		dephth--;
-		sb.append(indent + "NODE_AppendChild(parent, context->current_node);\n");
-		sb.append(indent + "context->current_node = parent;\n");
+		sb.append(indent + "NODE_AppendChild(parent_"+ dephth + connectNum +", context->current_node);\n");
+		sb.append(indent + "context->current_node = parent_"+ dephth + connectNum +";\n");
 	}
 
 	@Override
