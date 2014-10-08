@@ -22,6 +22,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
+		sb.append("parse_" + e.ruleName + "(context);");
 	}
 	
 	@Override
