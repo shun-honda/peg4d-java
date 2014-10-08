@@ -90,6 +90,17 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitRepetition(ParsingRepetition e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "while(!ParserContext_IsFailure(context)) {\n");
+		level++;
+		e.inner.visit(this);
+		level--;
+		sb.append(indent + "}\n");
 	}
 	
 	@Override
