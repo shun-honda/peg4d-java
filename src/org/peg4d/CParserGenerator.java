@@ -158,7 +158,17 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitAnd(ParsingAnd e) {
-		
+		String indent = "";
+		int i = 0;
+		while(i < indent_level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "int andbacktrackpos_" + dephth + " = input->pos;\n");
+		dephth++;
+		e.inner.visit(this);
+		dephth--;
+		sb.append(indent + "input->pos = andbacktrackpos_" + dephth + ";\n");
 	}
 
 	@Override
