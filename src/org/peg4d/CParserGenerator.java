@@ -6,7 +6,10 @@ import java.io.IOException;
 
 public class CParserGenerator extends ParsingExpressionVisitor {
 	protected StringBuilder sb, header_sb;
-	int level = 0;
+	int indent_level = 0;
+	int dephth = 0;
+	int connectNum = 0;
+	boolean backtrackflag = false;
 	public CParserGenerator() {
 		sb = new StringBuilder();
 		header_sb = new StringBuilder();
@@ -43,22 +46,25 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	public void generateRuleFunction(String ruleName, ParsingExpression e) {
 		header_sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input);\n");
 		sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input)\n{\n");
-		level++;
+		indent_level++;
+		dephth++;
 		sb.append("\tuint8_t c;\n");
 		e.visit(this);
-		level--;
+		indent_level--;
+		dephth--;
 		sb.append("\tif(ParserContext_IsFailure(context)) {\n");
 		sb.append("\t\treturn 1;\n");
 		sb.append("\t}\n");
 		sb.append("\treturn 0;\n");
 		sb.append("}\n\n");
+		backtrackflag = false;
 	}
 
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
@@ -69,7 +75,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	public void visitByte(ParsingByte e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
@@ -83,7 +89,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	public void visitByteRange(ParsingByteRange e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
@@ -97,7 +103,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	public void visitAny(ParsingAny e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
@@ -111,7 +117,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	public void visitTagging(ParsingTagging e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
@@ -134,22 +140,25 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	public void visitRepetition(ParsingRepetition e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
 		sb.append(indent + "NODE node;\n");
 		sb.append(indent + "while(!ParserContext_IsFailure(context)) {\n");
-		level++;
+		indent_level++;
 		sb.append(indent + "\tnode = context->current_node;\n");
+		dephth++;
 		e.inner.visit(this);
-		level--;
+		dephth--;
+		indent_level--;
 		sb.append(indent + "}\n");
 		sb.append(indent + "context->current_node = node;\n");
 	}
 	
 	@Override
 	public void visitAnd(ParsingAnd e) {
+		
 	}
 
 	@Override
@@ -158,53 +167,95 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 
 	@Override
 	public void visitConnector(ParsingConnector e) {
+		String indent = "";
+		int i = 0;
+		while(i < indent_level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "NODE *parent_"+ dephth + connectNum +" = context->current_node;\n");
+		dephth++;
+		e.inner.visit(this);
+		dephth--;
+		sb.append(indent + "NODE_AppendChild(parent, context->current_node);\n");
+		sb.append(indent + "context->current_node = parent;\n");
 	}
 
 	@Override
 	public void visitSequence(ParsingSequence e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int backtrackpos;\n");
-		sb.append(indent + "backtrackpos = input->pos;\n");
+		sb.append(indent + "int seqencebacktrackpos_" + dephth + " = input->pos;\n");
 		for(int j = 0; j < e.size(); j++) {
+			dephth++;
 			e.get(j).visit(this);
+			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
 			sb.append(indent + "\tgoto fail;\n");
 			sb.append(indent + "}\n");
 		}
 		sb.append(indent + "goto succ;\n");
 		sb.append("fail:\n");
-		sb.append(indent + "input->pos = backtrackpos;\n");
+		sb.append(indent + "input->pos = seqencebacktrackpos_" + dephth + ";\n");
 		sb.append("succ:\n");
 	}
 
 	@Override
 	public void visitChoice(ParsingChoice e) {
+		String indent = "";
+		int i = 0;
+		while(i < indent_level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "int choicebacktrackpos_" + dephth + " = input->pos;\n");
+		sb.append(indent + "NODE *node = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node = context->current_node;\n");
+		for(int j = 0; j < e.size() - 1; j++) {
+			dephth++;
+			e.get(j).visit(this);
+			dephth--;
+			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
+			sb.append(indent + "\tinput->pos = choicebacktrackpos_" + dephth + ";\n");
+			sb.append(indent + "\tcontext->current_node = node;\n");
+			sb.append(indent + "}\n");
+			sb.append(indent + "else {\n");
+			sb.append(indent + "\tgoto choice_succ;\n");
+			sb.append(indent + "}\n");
+		}
+		e.get(e.size() - 1).visit(this);
+		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
+		sb.append(indent + "\tinput->pos = choicebacktrackpos_" + dephth + ";\n");
+		sb.append(indent + "}\n");
+		sb.append("choice_succ:\n");
 	}
 
 	@Override
 	public void visitConstructor(ParsingConstructor e) {
 		String indent = "";
 		int i = 0;
-		while(i < level) {
+		while(i < indent_level) {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int backtrackpos;\n");
-		sb.append(indent + "backtrackpos = input->pos;\n");
+		sb.append(indent + "int constbacktrackpos_" + dephth + " = input->pos;\n");
+		sb.append(indent + "context->current_node = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
 		for(int j = 0; j < e.size(); j++) {
+			connectNum = j;
+			dephth++;
 			e.get(j).visit(this);
+			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-			sb.append(indent + "\tgoto fail;\n");
+			sb.append(indent + "\tgoto const_fail;\n");
 			sb.append(indent + "}\n");
 		}
-		sb.append(indent + "goto succ;\n");
-		sb.append("fail:\n");
-		sb.append(indent + "input->pos = backtrackpos;\n");
-		sb.append("succ:\n");
+		sb.append(indent + "goto const_succ;\n");
+		sb.append("const_fail:\n");
+		sb.append(indent + "input->pos = constbacktrackpos_" + dephth + ";\n");
+		sb.append("const_succ:\n");
 	}
 }
