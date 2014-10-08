@@ -9,6 +9,8 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	int indent_level = 0;
 	int dephth = 0;
 	int connectNum = 0;
+	int repNum = 0;
+	int seNum = 0;
 	boolean backtrackflag = false;
 	public CParserGenerator() {
 		sb = new StringBuilder();
@@ -57,7 +59,9 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		sb.append("\t}\n");
 		sb.append("\treturn 0;\n");
 		sb.append("}\n\n");
-		backtrackflag = false;
+		connectNum = 0;
+		repNum = 0;
+		seNum = 0;
 	}
 
 	@Override
@@ -134,6 +138,22 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitOptional(ParsingOption e) {
+		String indent = "";
+		int i = 0;
+		while(i < indent_level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "int optionalbacktrackpos_" + dephth + " = input->pos;\n");
+		sb.append(indent + "NODE *node_" + dephth + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node_" + dephth + " = context->current_node;\n");
+		dephth++;
+		e.inner.visit(this);
+		dephth--;
+		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
+		sb.append(indent + "input->pos = optionalbacktrackpos_" + dephth + ";\n");
+		sb.append(indent + "\tcontext->current_node = node_" + dephth + ";\n");
+		sb.append(indent + "}\n");
 	}
 	
 	@Override
@@ -144,16 +164,20 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "NODE node;\n");
-		sb.append(indent + "while(!ParserContext_IsFailure(context)) {\n");
+		int repNum = this.repNum;
+		sb.append(indent + "NODE *rep_node" + dephth + repNum + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "while(1) {\n");
 		indent_level++;
-		sb.append(indent + "\tnode = context->current_node;\n");
+		sb.append(indent + "\trep_node" + dephth + repNum + " = context->current_node;\n");
 		dephth++;
 		e.inner.visit(this);
 		dephth--;
 		indent_level--;
+		sb.append(indent + "\tif(ParserContext_IsFailure(context)) {\n");
+		sb.append(indent + "\t\tbreak;\n");
+		sb.append(indent + "\t}\n");
 		sb.append(indent + "}\n");
-		sb.append(indent + "context->current_node = node;\n");
+		sb.append(indent + "context->current_node = rep_node" + dephth + repNum + ";\n");
 	}
 	
 	@Override
@@ -218,19 +242,21 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int seqencebacktrackpos_" + dephth + " = input->pos;\n");
+		int seNum = this.seNum;
+		sb.append(indent + "int seqencebacktrackpos_" + dephth + seNum + " = input->pos;\n");
 		for(int j = 0; j < e.size(); j++) {
+			repNum = j;
 			dephth++;
 			e.get(j).visit(this);
 			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-			sb.append(indent + "\tgoto fail;\n");
+			sb.append(indent + "\tgoto sequence_fail" + dephth + seNum + ";\n");
 			sb.append(indent + "}\n");
 		}
-		sb.append(indent + "goto succ;\n");
-		sb.append("fail:\n");
-		sb.append(indent + "input->pos = seqencebacktrackpos_" + dephth + ";\n");
-		sb.append("succ:\n");
+		sb.append(indent + "goto sequence_succ" + dephth + seNum + ";\n");
+		sb.append("sequence_fail" + dephth + seNum + ":\n");
+		sb.append(indent + "input->pos = seqencebacktrackpos_" + dephth + seNum + ";\n");
+		sb.append("sequence_succ" + dephth + seNum + ":\n");
 	}
 
 	@Override
@@ -242,25 +268,27 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			i++;
 		}
 		sb.append(indent + "int choicebacktrackpos_" + dephth + " = input->pos;\n");
-		sb.append(indent + "NODE *node = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
-		sb.append(indent + "node = context->current_node;\n");
+		sb.append(indent + "NODE *node" + dephth + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node" + dephth + " = context->current_node;\n");
 		for(int j = 0; j < e.size() - 1; j++) {
+			repNum = j;
+			seNum = j;
 			dephth++;
 			e.get(j).visit(this);
 			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
 			sb.append(indent + "\tinput->pos = choicebacktrackpos_" + dephth + ";\n");
-			sb.append(indent + "\tcontext->current_node = node;\n");
+			sb.append(indent + "\tcontext->current_node = node" + dephth + ";\n");
 			sb.append(indent + "}\n");
 			sb.append(indent + "else {\n");
-			sb.append(indent + "\tgoto choice_succ;\n");
+			sb.append(indent + "\tgoto choice_succ" + dephth + ";\n");
 			sb.append(indent + "}\n");
 		}
 		e.get(e.size() - 1).visit(this);
 		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
 		sb.append(indent + "\tinput->pos = choicebacktrackpos_" + dephth + ";\n");
 		sb.append(indent + "}\n");
-		sb.append("choice_succ:\n");
+		sb.append("choice_succ" + dephth + ":\n");
 	}
 
 	@Override
@@ -275,16 +303,17 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		sb.append(indent + "context->current_node = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
 		for(int j = 0; j < e.size(); j++) {
 			connectNum = j;
+			repNum = j;
 			dephth++;
 			e.get(j).visit(this);
 			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-			sb.append(indent + "\tgoto const_fail;\n");
+			sb.append(indent + "\tgoto const_fail" + dephth + ";\n");
 			sb.append(indent + "}\n");
 		}
-		sb.append(indent + "goto const_succ;\n");
-		sb.append("const_fail:\n");
+		sb.append(indent + "goto const_succ" + dephth + ";\n");
+		sb.append("const_fail" + dephth + ":\n");
 		sb.append(indent + "input->pos = constbacktrackpos_" + dephth + ";\n");
-		sb.append("const_succ:\n");
+		sb.append("const_succ" + dephth + ":\n");
 	}
 }
