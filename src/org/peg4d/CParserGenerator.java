@@ -44,6 +44,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		header_sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input);\n");
 		sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input)\n{\n");
 		level++;
+		sb.append("\tuint8_t c;\n");
 		e.visit(this);
 		level--;
 		sb.append("\tif(ParserContext_IsFailure(context)) {\n");
@@ -55,7 +56,13 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
-		sb.append("parse_" + e.ruleName + "(context);");
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "parse_" + e.ruleName + "(context, input);\n");
 	}
 	
 	@Override
@@ -66,7 +73,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
+		sb.append(indent + "c = InputSource_GetUint8(input);\n");
 		sb.append(indent + "if(c != (uint8_t)"+ e.byteChar +") {\n");
 		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
 		sb.append(indent + "}\n");
@@ -80,7 +87,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
+		sb.append(indent + "c = InputSource_GetUint8(input);\n");
 		sb.append(indent + "if(c < (uint8_t)"+ e.startByteChar +" || c > (uint8_t)" + e.endByteChar + ") {\n");
 		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
 		sb.append(indent + "}\n");
@@ -94,7 +101,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
+		sb.append(indent + "c = InputSource_GetUint8(input);\n");
 		sb.append(indent + "if (c == (uint8_t)-1) {\n");
 		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
 		sb.append(indent + "}\n");
@@ -102,6 +109,13 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitTagging(ParsingTagging e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "NODE_SetTag(context->current_node, (uint8_t*)\"" + e.tag + "\", input);\n");
 	}
 	
 	@Override
@@ -148,6 +162,24 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 
 	@Override
 	public void visitSequence(ParsingSequence e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "int backtrackpos;\n");
+		sb.append(indent + "backtrackpos = input->pos;\n");
+		for(int j = 0; j < e.size(); j++) {
+			e.get(j).visit(this);
+			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
+			sb.append(indent + "\tgoto fail;\n");
+			sb.append(indent + "}\n");
+		}
+		sb.append(indent + "goto succ;\n");
+		sb.append("fail:\n");
+		sb.append(indent + "input->pos = backtrackpos;\n");
+		sb.append("succ:\n");
 	}
 
 	@Override
@@ -156,5 +188,23 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 
 	@Override
 	public void visitConstructor(ParsingConstructor e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "int backtrackpos;\n");
+		sb.append(indent + "backtrackpos = input->pos;\n");
+		for(int j = 0; j < e.size(); j++) {
+			e.get(j).visit(this);
+			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
+			sb.append(indent + "\tgoto fail;\n");
+			sb.append(indent + "}\n");
+		}
+		sb.append(indent + "goto succ;\n");
+		sb.append("fail:\n");
+		sb.append(indent + "input->pos = backtrackpos;\n");
+		sb.append("succ:\n");
 	}
 }
