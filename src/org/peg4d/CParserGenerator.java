@@ -173,6 +173,25 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 
 	@Override
 	public void visitNot(ParsingNot e) {
+		String indent = "";
+		int i = 0;
+		while(i < indent_level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "int notbacktrackpos_" + dephth + " = input->pos;\n");
+		sb.append(indent + "NODE *node_" + dephth + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node_" + dephth + " = context->current_node;\n");
+		dephth++;
+		e.inner.visit(this);
+		dephth--;
+		sb.append(indent + "input->pos = notbacktrackpos_" + dephth + ";\n");
+		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
+		sb.append(indent + "\tcontext->current_node = node_" + dephth + ";\n");
+		sb.append(indent + "}\n");
+		sb.append(indent + "else {\n");
+		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 0);\n");
+		sb.append(indent + "}");
 	}
 
 	@Override
