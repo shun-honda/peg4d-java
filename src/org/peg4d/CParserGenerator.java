@@ -13,6 +13,8 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			ParsingRule rule = list.ArrayValues[i];
 			this.generateRuleFunction(rule.ruleName, rule.expr);
 		}
+		System.out.println("\nOutput C Parser:\n");
+		System.out.println(sb.toString());
 	}
 	
 	public void generateRuleFunction(String ruleName, ParsingExpression e) {
@@ -44,6 +46,16 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
+		sb.append(indent + "if(c < (uint8_t)"+ e.startByteChar +" && c > (uint8_t)" + e.endByteChar + ") {\n");
+		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
+		sb.append(indent + "}\n");
 	}
 	
 	@Override
