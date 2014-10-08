@@ -1,23 +1,32 @@
 package org.peg4d;
 
 public class CParserGenerator extends ParsingExpressionVisitor {
-	protected StringBuilder sb;
+	protected StringBuilder sb, header_sb;
 	int level = 0;
 	public CParserGenerator() {
 		sb = new StringBuilder();
+		header_sb = new StringBuilder();
 	}
 	
 	public void generateCParser(Grammar peg) {
 		UList<ParsingRule> list = peg.getRuleList();
+		this.generateHeader();
 		for(int i = 0; i < list.size(); i++) {
 			ParsingRule rule = list.ArrayValues[i];
 			this.generateRuleFunction(rule.ruleName, rule.expr);
 		}
 		System.out.println("\nOutput C Parser:\n");
+		System.out.println(header_sb.toString());
 		System.out.println(sb.toString());
 	}
 	
+	public void generateHeader() {
+		header_sb.append("#include \"pegvm.h\"\n");
+		header_sb.append("#include \"input_source.h\"\n");
+	}
+	
 	public void generateRuleFunction(String ruleName, ParsingExpression e) {
+		header_sb.append("int parse_" + ruleName + "(context);\n");
 		sb.append("int parse_" + ruleName + "(context)\n{\n");
 		level++;
 		e.visit(this);
