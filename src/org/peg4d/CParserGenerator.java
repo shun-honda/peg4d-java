@@ -2,6 +2,7 @@ package org.peg4d;
 
 public class CParserGenerator extends ParsingExpressionVisitor {
 	protected StringBuilder sb;
+	int level = 0;
 	public CParserGenerator() {
 		sb = new StringBuilder();
 	}
@@ -16,8 +17,10 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	public void generateRuleFunction(String ruleName, ParsingExpression e) {
 		sb.append("int parse_" + ruleName + "(context)\n{\n");
+		level++;
 		e.visit(this);
-		sb.append("}\n");
+		level--;
+		sb.append("}\n\n");
 	}
 
 	@Override
@@ -27,6 +30,16 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitByte(ParsingByte e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
+		sb.append(indent + "if(c != (uint8_t)"+ e.byteChar +") {\n");
+		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
+		sb.append(indent + "}\n");
 	}
 	
 	@Override
