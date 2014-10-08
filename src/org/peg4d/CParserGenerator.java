@@ -1,5 +1,9 @@
 package org.peg4d;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+
 public class CParserGenerator extends ParsingExpressionVisitor {
 	protected StringBuilder sb, header_sb;
 	int level = 0;
@@ -18,19 +22,34 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		System.out.println("\nOutput C Parser:\n");
 		System.out.println(header_sb.toString());
 		System.out.println(sb.toString());
+		
+		try{
+			  File file = new File("../simplevm/src/parser.generated.c");
+			  FileWriter filewriter = new FileWriter(file);
+			  filewriter.write(header_sb.toString() + sb.toString());
+			  filewriter.close();
+		}catch(IOException e){
+			System.out.println(e);
+		}
 	}
 	
 	public void generateHeader() {
 		header_sb.append("#include \"pegvm.h\"\n");
 		header_sb.append("#include \"input_source.h\"\n");
+		header_sb.append("#include \"node.h\"\n");
+		header_sb.append("#include <stdio.h>\n");
 	}
 	
 	public void generateRuleFunction(String ruleName, ParsingExpression e) {
-		header_sb.append("int parse_" + ruleName + "(context);\n");
-		sb.append("int parse_" + ruleName + "(context)\n{\n");
+		header_sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input);\n");
+		sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input)\n{\n");
 		level++;
 		e.visit(this);
 		level--;
+		sb.append("\tif(ParserContext_IsFailure(context)) {\n");
+		sb.append("\t\treturn 1;\n");
+		sb.append("\t}\n");
+		sb.append("\treturn 0;\n");
 		sb.append("}\n\n");
 	}
 
@@ -62,7 +81,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			i++;
 		}
 		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
-		sb.append(indent + "if(c < (uint8_t)"+ e.startByteChar +" && c > (uint8_t)" + e.endByteChar + ") {\n");
+		sb.append(indent + "if(c < (uint8_t)"+ e.startByteChar +" || c > (uint8_t)" + e.endByteChar + ") {\n");
 		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
 		sb.append(indent + "}\n");
 	}
@@ -105,11 +124,14 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
+		sb.append(indent + "NODE node;\n");
 		sb.append(indent + "while(!ParserContext_IsFailure(context)) {\n");
 		level++;
+		sb.append(indent + "\tnode = context->current_node;\n");
 		e.inner.visit(this);
 		level--;
 		sb.append(indent + "}\n");
+		sb.append(indent + "context->current_node = node;\n");
 	}
 	
 	@Override
