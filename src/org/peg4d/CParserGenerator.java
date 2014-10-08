@@ -60,6 +60,16 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 	
 	@Override
 	public void visitAny(ParsingAny e) {
+		String indent = "";
+		int i = 0;
+		while(i < level) {
+			indent += "\t";
+			i++;
+		}
+		sb.append(indent + "uint8_t c = InputSource_GetUint8(input);\n");
+		sb.append(indent + "if (c == (uint8_t)-1) {\n");
+		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 1);\n");
+		sb.append(indent + "}\n");
 	}
 	
 	@Override
