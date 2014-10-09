@@ -7,11 +7,9 @@ import java.io.IOException;
 public class CParserGenerator extends ParsingExpressionVisitor {
 	protected StringBuilder sb, header_sb;
 	int indent_level = 0;
-	int dephth = 0;
-	int connectNum = 0;
-	int repNum = 0;
-	int seNum = 0;
-	boolean backtrackflag = false;
+	int nodeNum = 0;
+	int backtrackNum = 0;
+	int jumpNum = 0;
 	public CParserGenerator() {
 		sb = new StringBuilder();
 		header_sb = new StringBuilder();
@@ -49,19 +47,16 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		header_sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input);\n");
 		sb.append("int parse_" + ruleName + "(ParserContext *context, InputSource *input)\n{\n");
 		indent_level++;
-		dephth++;
 		sb.append("\tuint8_t c;\n");
 		e.visit(this);
 		indent_level--;
-		dephth--;
 		sb.append("\tif(ParserContext_IsFailure(context)) {\n");
 		sb.append("\t\treturn 1;\n");
 		sb.append("\t}\n");
 		sb.append("\treturn 0;\n");
 		sb.append("}\n\n");
-		connectNum = 0;
-		repNum = 0;
-		seNum = 0;
+		nodeNum = 0;
+		backtrackNum = 0;
 	}
 
 	@Override
@@ -144,15 +139,17 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int optionalbacktrackpos_" + dephth + " = input->pos;\n");
-		sb.append(indent + "NODE *node_" + dephth + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
-		sb.append(indent + "node_" + dephth + " = context->current_node;\n");
-		dephth++;
+		int nodeNum = this.nodeNum;
+		int backtrackNum = this.backtrackNum;
+		this.nodeNum++;
+		this.backtrackNum++;
+		sb.append(indent + "int backtrackpos_" + backtrackNum + " = input->pos;\n");
+		sb.append(indent + "NODE *node_" + nodeNum + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node_" + nodeNum + " = context->current_node;\n");
 		e.inner.visit(this);
-		dephth--;
 		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-		sb.append(indent + "input->pos = optionalbacktrackpos_" + dephth + ";\n");
-		sb.append(indent + "\tcontext->current_node = node_" + dephth + ";\n");
+		sb.append(indent + "input->pos = backtrackpos_" + backtrackNum + ";\n");
+		sb.append(indent + "\tcontext->current_node = node_" + nodeNum + ";\n");
 		sb.append(indent + "}\n");
 	}
 	
@@ -164,20 +161,19 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		int repNum = this.repNum;
-		sb.append(indent + "NODE *rep_node" + dephth + repNum + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		int nodeNum = this.nodeNum;
+		this.nodeNum++;
+		sb.append(indent + "NODE *node" + nodeNum + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
 		sb.append(indent + "while(1) {\n");
 		indent_level++;
-		sb.append(indent + "\trep_node" + dephth + repNum + " = context->current_node;\n");
-		dephth++;
+		sb.append(indent + "\tnode" + nodeNum + " = context->current_node;\n");
 		e.inner.visit(this);
-		dephth--;
 		indent_level--;
 		sb.append(indent + "\tif(ParserContext_IsFailure(context)) {\n");
 		sb.append(indent + "\t\tbreak;\n");
 		sb.append(indent + "\t}\n");
 		sb.append(indent + "}\n");
-		sb.append(indent + "context->current_node = rep_node" + dephth + repNum + ";\n");
+		sb.append(indent + "context->current_node = node" + nodeNum + ";\n");
 	}
 	
 	@Override
@@ -188,11 +184,11 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int andbacktrackpos_" + dephth + " = input->pos;\n");
-		dephth++;
+		int backtrackNum = this.backtrackNum;
+		this.backtrackNum++;
+		sb.append(indent + "int backtrackpos_" + backtrackNum + " = input->pos;\n");
 		e.inner.visit(this);
-		dephth--;
-		sb.append(indent + "input->pos = andbacktrackpos_" + dephth + ";\n");
+		sb.append(indent + "input->pos = backtrackpos_" + backtrackNum + ";\n");
 	}
 
 	@Override
@@ -203,15 +199,17 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int notbacktrackpos_" + dephth + " = input->pos;\n");
-		sb.append(indent + "NODE *node_" + dephth + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
-		sb.append(indent + "node_" + dephth + " = context->current_node;\n");
-		dephth++;
+		int nodeNum = this.nodeNum;
+		int backtrackNum = this.backtrackNum;
+		this.nodeNum++;
+		this.backtrackNum++;
+		sb.append(indent + "int backtrackpos_" + backtrackNum + " = input->pos;\n");
+		sb.append(indent + "NODE *node_" + nodeNum + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node_" + nodeNum + " = context->current_node;\n");
 		e.inner.visit(this);
-		dephth--;
-		sb.append(indent + "input->pos = notbacktrackpos_" + dephth + ";\n");
+		sb.append(indent + "input->pos = backtrackpos_" + backtrackNum + ";\n");
 		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-		sb.append(indent + "\tcontext->current_node = node_" + dephth + ";\n");
+		sb.append(indent + "\tcontext->current_node = node_" + nodeNum + ";\n");
 		sb.append(indent + "}\n");
 		sb.append(indent + "else {\n");
 		sb.append(indent + "\tParserContext_RecordFailurePos(context, input, 0);\n");
@@ -226,12 +224,12 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "NODE *parent_"+ dephth + connectNum +" = context->current_node;\n");
-		dephth++;
+		int nodeNum = this.nodeNum;
+		this.nodeNum++;
+		sb.append(indent + "NODE *parent_" + nodeNum + " = context->current_node;\n");
 		e.inner.visit(this);
-		dephth--;
-		sb.append(indent + "NODE_AppendChild(parent_"+ dephth + connectNum +", context->current_node);\n");
-		sb.append(indent + "context->current_node = parent_"+ dephth + connectNum +";\n");
+		sb.append(indent + "NODE_AppendChild(parent_" + nodeNum + ", context->current_node);\n");
+		sb.append(indent + "context->current_node = parent_" + nodeNum + ";\n");
 	}
 
 	@Override
@@ -242,21 +240,21 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		int seNum = this.seNum;
-		sb.append(indent + "int seqencebacktrackpos_" + dephth + seNum + " = input->pos;\n");
+		int backtrackNum = this.backtrackNum;
+		int jumpNum = this.jumpNum;
+		this.backtrackNum++;
+		this.jumpNum++;
+		sb.append(indent + "int backtrackpos_" + backtrackNum + " = input->pos;\n");
 		for(int j = 0; j < e.size(); j++) {
-			repNum = j;
-			dephth++;
 			e.get(j).visit(this);
-			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-			sb.append(indent + "\tgoto sequence_fail" + dephth + seNum + ";\n");
+			sb.append(indent + "\tgoto fail" + jumpNum + ";\n");
 			sb.append(indent + "}\n");
 		}
-		sb.append(indent + "goto sequence_succ" + dephth + seNum + ";\n");
-		sb.append("sequence_fail" + dephth + seNum + ":\n");
-		sb.append(indent + "input->pos = seqencebacktrackpos_" + dephth + seNum + ";\n");
-		sb.append("sequence_succ" + dephth + seNum + ":\n");
+		sb.append(indent + "goto succ" + jumpNum + ";\n");
+		sb.append("fail" + jumpNum + ":\n");
+		sb.append(indent + "input->pos = backtrackpos_" + backtrackNum + ";\n");
+		sb.append("succ" + jumpNum + ":\n");
 	}
 
 	@Override
@@ -267,28 +265,30 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int choicebacktrackpos_" + dephth + " = input->pos;\n");
-		sb.append(indent + "NODE *node" + dephth + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
-		sb.append(indent + "node" + dephth + " = context->current_node;\n");
+		int nodeNum = this.nodeNum;
+		int backtrackNum = this.backtrackNum;
+		int jumpNum = this.jumpNum;
+		this.nodeNum++;
+		this.backtrackNum++;
+		this.jumpNum++;
+		sb.append(indent + "int backtrackpos_" + backtrackNum + " = input->pos;\n");
+		sb.append(indent + "NODE *node" + nodeNum + " = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
+		sb.append(indent + "node" + nodeNum + " = context->current_node;\n");
 		for(int j = 0; j < e.size() - 1; j++) {
-			repNum = j;
-			seNum = j;
-			dephth++;
 			e.get(j).visit(this);
-			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-			sb.append(indent + "\tinput->pos = choicebacktrackpos_" + dephth + ";\n");
-			sb.append(indent + "\tcontext->current_node = node" + dephth + ";\n");
+			sb.append(indent + "\tinput->pos = backtrackpos_" + backtrackNum + ";\n");
+			sb.append(indent + "\tcontext->current_node = node" + nodeNum + ";\n");
 			sb.append(indent + "}\n");
 			sb.append(indent + "else {\n");
-			sb.append(indent + "\tgoto choice_succ" + dephth + ";\n");
+			sb.append(indent + "\tgoto succ" + jumpNum + ";\n");
 			sb.append(indent + "}\n");
 		}
 		e.get(e.size() - 1).visit(this);
 		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-		sb.append(indent + "\tinput->pos = choicebacktrackpos_" + dephth + ";\n");
+		sb.append(indent + "\tinput->pos = backtrackpos_" + backtrackNum + ";\n");
 		sb.append(indent + "}\n");
-		sb.append("choice_succ" + dephth + ":\n");
+		sb.append("succ" + jumpNum + ":\n");
 	}
 
 	@Override
@@ -299,21 +299,21 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 			indent += "\t";
 			i++;
 		}
-		sb.append(indent + "int constbacktrackpos_" + dephth + " = input->pos;\n");
+		int backtrackNum = this.backtrackNum;
+		int jumpNum = this.jumpNum;
+		this.backtrackNum++;
+		this.jumpNum++;
+		sb.append(indent + "int backtrackpos_" + backtrackNum + " = input->pos;\n");
 		sb.append(indent + "context->current_node = NODE_New(NODE_TYPE_DEFAULT, input->pos);\n");
 		for(int j = 0; j < e.size(); j++) {
-			connectNum = j;
-			repNum = j;
-			dephth++;
 			e.get(j).visit(this);
-			dephth--;
 			sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-			sb.append(indent + "\tgoto const_fail" + dephth + ";\n");
+			sb.append(indent + "\tgoto fail" + jumpNum + ";\n");
 			sb.append(indent + "}\n");
 		}
-		sb.append(indent + "goto const_succ" + dephth + ";\n");
-		sb.append("const_fail" + dephth + ":\n");
-		sb.append(indent + "input->pos = constbacktrackpos_" + dephth + ";\n");
-		sb.append("const_succ" + dephth + ":\n");
+		sb.append(indent + "goto succ" + jumpNum + ";\n");
+		sb.append("fail" + jumpNum + ":\n");
+		sb.append(indent + "input->pos = backtrackpos_" + backtrackNum + ";\n");
+		sb.append("succ" + jumpNum + ":\n");
 	}
 }
