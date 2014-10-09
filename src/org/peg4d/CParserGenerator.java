@@ -148,7 +148,7 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		sb.append(indent + "node_" + nodeNum + " = context->current_node;\n");
 		e.inner.visit(this);
 		sb.append(indent + "if(ParserContext_IsFailure(context)) {\n");
-		sb.append(indent + "input->pos = backtrackpos_" + backtrackNum + ";\n");
+		sb.append(indent + "\tinput->pos = backtrackpos_" + backtrackNum + ";\n");
 		sb.append(indent + "\tcontext->current_node = node_" + nodeNum + ";\n");
 		sb.append(indent + "}\n");
 	}
@@ -228,8 +228,10 @@ public class CParserGenerator extends ParsingExpressionVisitor {
 		this.nodeNum++;
 		sb.append(indent + "NODE *parent_" + nodeNum + " = context->current_node;\n");
 		e.inner.visit(this);
-		sb.append(indent + "NODE_AppendChild(parent_" + nodeNum + ", context->current_node);\n");
-		sb.append(indent + "context->current_node = parent_" + nodeNum + ";\n");
+		sb.append(indent + "if(!ParserContext_IsFailure(context)) {\n");
+		sb.append(indent + "\tNODE_AppendChild(parent_" + nodeNum + ", context->current_node);\n");
+		sb.append(indent + "\tcontext->current_node = parent_" + nodeNum + ";\n");
+		sb.append(indent + "}\n");
 	}
 
 	@Override
