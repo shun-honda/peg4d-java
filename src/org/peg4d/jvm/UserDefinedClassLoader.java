@@ -30,10 +30,17 @@ public class UserDefinedClassLoader extends ClassLoader {
 	/**
 	 * 
 	 * @param packageName
+	 * not null
 	 */
 	public UserDefinedClassLoader(String packageName) {
 		super();
 		this.allowedPackageName = toBinaryName(packageName);
+		this.byteCodeMap = new HashMap<>();
+	}
+
+	public UserDefinedClassLoader() {
+		super();
+		this.allowedPackageName = null;
 		this.byteCodeMap = new HashMap<>();
 	}
 
@@ -57,6 +64,10 @@ public class UserDefinedClassLoader extends ClassLoader {
 
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+		if(this.allowedPackageName == null) {	// allow all package name
+			return super.loadClass(name, resolve);
+		}
+
 		Class<?> foundClass = this.findLoadedClass(name);
 		if(foundClass == null) {
 			ClassLoader parent = this.getParent();
