@@ -74,6 +74,14 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 		return this.internalName;
 	}
 
+	/**
+	 * get type descriptor of generating class
+	 * @return
+	 */
+	public Type getTypeDesc() {
+		return Type.getType( "L" + this.internalName + ";");
+	}
+
 	@Override
 	public String toString() {
 		return this.getInternalName();
@@ -221,10 +229,16 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 			this.pop(Type.getType(clazz));
 		}
 
+		/**
+		 * enter block scope
+		 */
 		public void enterScope() {
 			this.varScopes.createNewScope();
 		}
 
+		/**
+		 * exit block scope
+		 */
 		public void exitScope() {
 			this.varScopes.removeCurrentScope();
 		}
