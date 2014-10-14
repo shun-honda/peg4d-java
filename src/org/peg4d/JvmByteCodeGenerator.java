@@ -80,7 +80,31 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	// helper method.
 	private void generateFailure() { // generate equivalent code to ParsingContext#failure
-		
+		// if cond
+		this.generateFieldAccessOfParsingContext("pos", long.class);
+		this.generateFieldAccessOfParsingContext("fpos", long.class);
+		this.mBuilder.math(GeneratorAdapter.GT, Type.LONG_TYPE);
+
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		this.mBuilder.push(true);
+		this.mBuilder.ifCmp(Type.LONG_TYPE, GeneratorAdapter.NE, elseLabel);
+
+		// if block
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.generateFieldAccessOfParsingContext("pos", long.class);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.LONG_TYPE);
+		this.mBuilder.goTo(mergeLabel);
+
+		// else block
+		this.mBuilder.mark(elseLabel);
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.pushNull();
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
 	}
 
 	/**
