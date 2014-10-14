@@ -128,6 +128,7 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		// generate if cond
 		Label elseLabel = this.mBuilder.newLabel();
 		Label mergeLabel = this.mBuilder.newLabel();
+		this.mBuilder.push(true);
 		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, elseLabel);
 
 		// generate if block
@@ -164,7 +165,48 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitAny(ParsingAny e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// generate charAt
+		Method methodDesc_charAt = Methods.method(int.class, "charAt", long.class);
+		
+		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
+		this.generateFieldAccessOfParsingContext("pos", long.class);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_charAt);
+		
+		// compare to -1
+		this.mBuilder.push((int) -1);
+		this.mBuilder.math(GeneratorAdapter.NE, Type.INT_TYPE);
+		
+		// generate if condition
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+		this.mBuilder.push(true);
+		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, elseLabel);
+		
+		// generate if block
+		this.mBuilder.enterScope();
+		Method methodDesc_charLength = Methods.method(int.class, "charLength", long.class);
+		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
+		this.generateFieldAccessOfParsingContext("pos", long.class);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_charLength);
+		VarEntry entry_len = this.mBuilder.createNewVarAndStore(int.class);
+		
+		Method methodDesc_consume = Methods.method(void.class, "consume", int.class);
+		
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(entry_len);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_consume);
+		this.mBuilder.push(true);
+		this.mBuilder.goTo(mergeLabel);
+		
+		this.mBuilder.exitScope();
+		
+		// generate else block
+		this.mBuilder.mark(elseLabel);
+		this.generateFailure();
+		this.mBuilder.push(false);
+		
+		// merge
+		this.mBuilder.mark(mergeLabel);
 	}
 
 	@Override
