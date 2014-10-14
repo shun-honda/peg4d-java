@@ -150,7 +150,7 @@ public class UserDefinedClassLoader extends ClassLoader {
 		}
 	}
 
-	public void setDump(boolean enableByteCodeDump) {
+	public static void setDump(boolean enableByteCodeDump) {
 		enableDump = enableByteCodeDump;
 	}
 
