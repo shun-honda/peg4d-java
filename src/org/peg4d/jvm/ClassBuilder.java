@@ -292,6 +292,43 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 				this.visitLineNumber(lineNum, this.mark());
 			}
 		}
+
+		/**
+		 * push null value to stack top
+		 */
+		public void pushNull() {
+			this.visitInsn(ACONST_NULL);
+		}
+
+		/**
+		 * generate invokevirtual instruction.
+		 * @param ownerClass
+		 * owner class of method.
+		 * @param returnClass
+		 * return class
+		 * @param methodName
+		 * @param paramClasses
+		 * parameter classes (not contains receiver class)
+		 */
+		public void callInstanceMethod(Class<?> ownerClass, Class<?> returnClass, 
+				String methodName, Class<?>... paramClasses) {
+			Method methodDesc = Methods.method(returnClass, methodName, paramClasses);
+			this.invokeVirtual(Type.getType(ownerClass), methodDesc);
+		}
+
+		/**
+		 * generate invokestatic instruction.
+		 * @param ownerClass
+		 * owner class of method.
+		 * @param returnClass
+		 * @param methodName
+		 * @param paramClasses
+		 */
+		public void callStaticMethod(Class<?> ownerClass, Class<?> returnClass, 
+				String methodName, Class<?>... paramClasses) {
+			Method methodDesc = Methods.method(returnClass, methodName, paramClasses);
+			this.invokeStatic(Type.getType(ownerClass), methodDesc);
+		}
 	}
 
 	public static class TryCatchLabel {
