@@ -11,6 +11,7 @@ import java.util.TreeMap;
 
 import org.peg4d.data.RelationBuilder;
 import org.peg4d.ext.Generator;
+import org.peg4d.jvm.UserDefinedClassLoader;
 
 public class Main {
 	public final static String  ProgName  = "PEG4d";
@@ -108,6 +109,7 @@ public class Main {
 			
 			// jvm
 			if(fmt instanceof JvmByteCodeGenerator) {
+				UserDefinedClassLoader.setDump(true);
 				Class<?> parserClass = ((JvmByteCodeGenerator) fmt).generateClass();
 				if(InputFileName != null) {
 					loadInputFile(peg, InputFileName, parserClass);
