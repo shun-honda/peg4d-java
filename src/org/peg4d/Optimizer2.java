@@ -1,6 +1,16 @@
 package org.peg4d;
 
-
+import org.peg4d.expression.NonTerminal;
+import org.peg4d.expression.ParsingAny;
+import org.peg4d.expression.ParsingByte;
+import org.peg4d.expression.ParsingByteRange;
+import org.peg4d.expression.ParsingChoice;
+import org.peg4d.expression.ParsingExpression;
+import org.peg4d.expression.ParsingFailure;
+import org.peg4d.expression.ParsingMatcher;
+import org.peg4d.expression.ParsingNot;
+import org.peg4d.expression.ParsingOption;
+import org.peg4d.expression.ParsingSequence;
 
 class Optimizer2 {
 	
@@ -86,7 +96,6 @@ class Optimizer2 {
 			ne.matcher = e.matcher;
 			countOptimizedNonTerminal += 1;
 		}
-		//ne.report(ReportLevel.notice, "inlining " + e);
 	}
 
 
@@ -345,7 +354,7 @@ class Optimizer2 {
 	private static ParsingExpression selectChoice(ParsingChoice choice, int ch, ParsingExpression failed) {
 		UList<ParsingExpression> l = new UList<ParsingExpression>(new ParsingExpression[2]);
 		for(int i = 0; i < choice.size(); i++) {
-			if(choice.get(i).acceptByte(ch) != ParsingExpression.Reject) {
+			if(choice.get(i).acceptByte(ch) != ParsingExpression.StringReject) {
 				l.add(choice.get(i));
 			}
 		}
