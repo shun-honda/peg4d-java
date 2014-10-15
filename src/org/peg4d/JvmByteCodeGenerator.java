@@ -1,7 +1,5 @@
 package org.peg4d;
 
-import jline.History;
-
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
