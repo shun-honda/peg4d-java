@@ -1,0 +1,14 @@
+File
+    = Symbol
+
+Chunk
+    = Symbol
+
+Symbol
+    [example: a1]
+    [bad-example: 1a]
+    = { <without TRAIL SYMBOL_CHAR> SYMBOL_CHAR* #Symbol }
+
+SYMBOL_CHAR
+    = [a-zA-Z_]
+    / <if TRAIL> [0-9]
