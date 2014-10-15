@@ -155,7 +155,50 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// generate byteAt
+		Method methodDesc_byteAt = Methods.method(int.class, "byteAt", long.class);
+
+		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
+		this.generateFieldAccessOfParsingContext("pos", long.class);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_byteAt);
+		
+		// generate variable
+		VarEntry entry_ch = this.mBuilder.createNewVarAndStore(int.class);
+		
+		// compare to ByteRange
+		this.mBuilder.push(e.startByteChar);
+		this.mBuilder.math(GeneratorAdapter.GE, Type.INT_TYPE);
+		
+		this.mBuilder.loadFromVar(entry_ch);
+		this.mBuilder.push(e.endByteChar);
+		this.mBuilder.math(GeneratorAdapter.LE, Type.INT_TYPE);
+		
+		this.mBuilder.math(GeneratorAdapter.AND, Type.INT_TYPE);
+		
+		// generate if condition
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+		this.mBuilder.push(true);
+		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, elseLabel);
+		
+		// generate if block
+		
+		Method methodDesc_consume = Methods.method(void.class, "consume", int.class);
+
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.push((int) 1);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_consume);
+		this.mBuilder.push(true);
+		this.mBuilder.goTo(mergeLabel);
+		
+		// generate else block
+		this.mBuilder.mark(elseLabel);
+		this.generateFailure();
+		this.mBuilder.push(false);
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+		
 	}
 
 	@Override
