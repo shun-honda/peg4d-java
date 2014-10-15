@@ -106,14 +106,11 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	// helper method.
 	private void generateFailure() { // generate equivalent code to ParsingContext#failure
 		// if cond
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.generateFieldAccessOfParsingContext("fpos", long.class);
-		this.mBuilder.math(GeneratorAdapter.GT, Type.LONG_TYPE);
-
 		Label elseLabel = this.mBuilder.newLabel();
 		Label mergeLabel = this.mBuilder.newLabel();
 
-		this.mBuilder.push(true);
+		this.generateFieldAccessOfParsingContext("pos", long.class);
+		this.generateFieldAccessOfParsingContext("fpos", long.class);
 		this.mBuilder.ifCmp(Type.LONG_TYPE, GeneratorAdapter.NE, elseLabel);
 
 		// if block
@@ -163,6 +160,10 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitByte(ParsingByte e) {
+		// generate if cond
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
 		// generate byteAt
 		Method methodDesc_byteAt = Methods.method(int.class, "byteAt", long.class);
 
@@ -170,15 +171,9 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		this.generateFieldAccessOfParsingContext("pos", long.class);
 		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_byteAt);
 
-		// compare to byteChar
+		// push byteChar
 		this.mBuilder.push(e.byteChar);
-		this.mBuilder.math(GeneratorAdapter.EQ, Type.INT_TYPE);
-
-		// generate if cond
-		Label elseLabel = this.mBuilder.newLabel();
-		Label mergeLabel = this.mBuilder.newLabel();
-		this.mBuilder.push(true);
-		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, elseLabel);
+		this.mBuilder.ifCmp(Type.INT_TYPE, GeneratorAdapter.NE, elseLabel);
 
 		// generate if block
 		this.mBuilder.enterScope();
