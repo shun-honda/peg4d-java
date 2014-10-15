@@ -1,0 +1,36 @@
+#typedef struct PEG_NODE node;
+#enum OPTYPE {
+#    EQ,
+#    GT,
+#    NE,
+#}
+
+const (type:TYPE val:Object)
+#   (const_int  val:int)
+#   (const_bool val:boolean)
+#   (const_str  val:String)
+
+cond (type:TYPE optype:OPTYPE left:node right:node)
+#    (binop type:TYPE optype:BINOPTYPE = {<, <=, >, >=, !=, +, -, ...} left:node right:node)
+
+block (locals:node[] child:node[])
+
+alloc_local (name:String)
+get_local (name:String)
+set_local (name:String val:node)
+
+call (target:String)
+
+if (cond:node then:node else:node)
+loop (cond:node body:node)
+
+consume (n:int)
+failure()
+is_failed()
+
+get_pos()
+set_pos(val:node)
+get_fpos()
+set_fpos(val:node)
+get_node()
+set_node(val:node)
