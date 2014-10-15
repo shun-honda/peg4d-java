@@ -111,7 +111,7 @@ public class Main {
 			
 			// jvm
 			if(fmt instanceof JvmByteCodeGenerator) {
-				UserDefinedClassLoader.setDump(true);
+				//UserDefinedClassLoader.setDump(true);
 				Class<?> parserClass = ((JvmByteCodeGenerator) fmt).generateClass();
 				if(InputFileName != null) {
 					loadInputFile(peg, InputFileName, parserClass);
