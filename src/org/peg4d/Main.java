@@ -98,12 +98,13 @@ public class Main {
 			StringBuilder sb = new StringBuilder();
 			fmt.formatHeader(sb);
 			UList<ParsingRule> list = peg.getRuleList();
-			for(int i = 0; i < 0; i++) {
+			for(int i = 0; i < list.size(); i++) {
 				ParsingRule r = list.ArrayValues[i];
 				fmt.formatRule(r.ruleName, r.expr, sb);
 			}
 			fmt.formatFooter(sb);
 			System.out.println(sb.toString());
+			return;
 		}
 		if(InputFileName != null) {
 			loadInputFile(peg, InputFileName);
@@ -285,6 +286,7 @@ public class Main {
 		driverMap.put("p4d", org.peg4d.GrammarFormatter.class);
 		driverMap.put("peg", org.peg4d.GrammarFormatter.class);
 		driverMap.put("vm", org.peg4d.CodeGenerator.class);
+		driverMap.put("jvm", org.peg4d.JvmByteCodeGenerator.class);
 //		driverMap.put("svm", org.peg4d.vm.SimpleCodeGenerator.class);
 	}
 
