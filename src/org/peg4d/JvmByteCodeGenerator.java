@@ -198,7 +198,6 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 		// merge
 		this.mBuilder.mark(mergeLabel);
-		
 	}
 
 	@Override
@@ -279,7 +278,28 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitAnd(ParsingAnd e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// generate getPosition
+		Method methodDesc_getPosition = Methods.method(long.class, "getPosition");
+		
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_getPosition);
+		
+		// generate variable
+		VarEntry entry_pos = this.mBuilder.createNewVarAndStore(long.class);
+		
+		e.visit(this);
+		
+		// generate rollback
+		Method methodDesc_rollback = Methods.method(void.class, "rollback", long.class);
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(entry_pos);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_rollback);
+		
+		// generate isFailure
+		Method methodDesc_isFailure = Methods.method(void.class, "isFailure", boolean.class);
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_isFailure);
+		this.mBuilder.math(GeneratorAdapter.NEG, Type.BOOLEAN_TYPE);
 	}
 
 	@Override
