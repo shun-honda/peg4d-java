@@ -1,5 +1,7 @@
 package org.peg4d;
 
+import jline.History;
+
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -248,12 +250,110 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitSequence(ParsingSequence e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.mBuilder.enterScope();
+
+		// generate context.getPosition
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.callInstanceMethod(ParsingContext.class, long.class, "getPosition");
+		// store to pos
+		VarEntry entry_pos = this.mBuilder.createNewVarAndStore(long.class);
+
+		// generate context.markObjectStack
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.callInstanceMethod(ParsingContext.class, int.class, "markObjectStack");
+		// store to mark
+		VarEntry entry_mark = this.mBuilder.createNewVarAndStore(int.class);
+
+		// temporary contains return value.
+		this.mBuilder.push(true);
+		VarEntry entry_return = this.mBuilder.createNewVarAndStore(boolean.class);
+
+		Label breakLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+		for(int i = 0; i < e.size(); i++) {
+			// if cond
+			e.get(i).visit(this);	// TODO: support matcher
+			this.mBuilder.push(false);
+			this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.EQ, breakLabel);
+		}
+		this.mBuilder.goTo(mergeLabel);
+
+		// break
+		this.mBuilder.mark(breakLabel);
+		// generate abortLinkLog
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(entry_mark);
+		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "abortLinkLog", int.class);
+
+		// generate rollback
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(entry_pos);
+		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "rollback", long.class);
+
+		// save return value
+		this.mBuilder.push(false);
+		this.mBuilder.storeToVar(entry_return);
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+		this.mBuilder.loadFromVar(entry_return);
+
+		this.mBuilder.exitScope();
 	}
 
 	@Override
 	public void visitChoice(ParsingChoice e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.mBuilder.enterScope();
+
+		// generate context.rememberFailure and store to f
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.callInstanceMethod(ParsingContext.class, long.class, "rememberFailure");
+		VarEntry entry_f = this.mBuilder.createNewVarAndStore(long.class);
+
+		// generate context.left and store to left
+		this.generateFieldAccessOfParsingContext("left", ParsingObject.class);
+		VarEntry entry_left = this.mBuilder.createNewVarAndStore(ParsingObject.class);
+
+		// temporary contains return value
+		this.mBuilder.push(false);
+		VarEntry entry_return = this.mBuilder.createNewVarAndStore(boolean.class);
+
+		Label breakLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+		for(int i = 0; i < e.size(); i++) {
+			// store to context.left
+			this.mBuilder.loadFromVar(this.argEntry);
+			this.mBuilder.loadFromVar(entry_left);
+			this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+
+			e.get(i).visit(this);	// simpleMatch
+			this.mBuilder.push(true);
+			this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.EQ, breakLabel);
+		}
+		this.mBuilder.goTo(mergeLabel);
+
+		// break
+		this.mBuilder.mark(breakLabel);
+		// generate context.forgetFailure
+		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(entry_f);
+		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "forgetFailure", long.class);
+
+		// save return value
+		this.mBuilder.push(true);
+		this.mBuilder.storeToVar(entry_return);
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+
+		// store null to left
+		this.mBuilder.pushNull();
+		this.mBuilder.storeToVar(entry_left);
+
+		// push return value
+		this.mBuilder.loadFromVar(entry_return);
+
+		this.mBuilder.exitScope();
 	}
 
 	@Override
