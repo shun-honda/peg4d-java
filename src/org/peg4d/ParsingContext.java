@@ -2,19 +2,23 @@ package org.peg4d;
 
 import java.util.HashMap;
 
+import org.peg4d.expression.ParsingConstructor;
+import org.peg4d.expression.ParsingExpression;
+import org.peg4d.expression.ParsingMatcher;
+
 
 public class ParsingContext {
-	ParsingObject left;
-	ParsingSource source;
+	public ParsingObject left;
+	public ParsingSource source;
 
 	ParsingTag    emptyTag;	
 	ParsingStatistics          stat   = null;
 
-	public ParsingContext(ParsingSource s, long pos, int stacksize, ParsingMemo memo) {
+	public ParsingContext(ParsingSource s, long pos, int stacksize, MemoTable memo) {
 		this.left = null;
 		this.source = s;
 		this.resetSource(s, pos);
-		this.memoMap = memo != null ? memo : new NoParsingMemo();
+		this.memoMap = memo != null ? memo : new NoMemoTable(0, 0);
 	}
 
 	public ParsingContext(ParsingSource s) {
@@ -25,6 +29,9 @@ public class ParsingContext {
 		this.source = source;
 		this.pos = pos;
 		this.fpos = 0;
+		if(ParsingExpression.VerboseStack) {
+			this.initCallStack();
+		}
 	}
 	
 	public final boolean hasByteChar() {
@@ -81,7 +88,7 @@ public class ParsingContext {
 		return this.parse(peg, startPoint, null);
 	}
 
-	public final ParsingObject parse(Grammar peg, String startPoint, ParsingMemoConfigure conf) {
+	public final ParsingObject parse(Grammar peg, String startPoint, MemoizationManager conf) {
 		ParsingRule start = peg.getRule(startPoint);
 		if(start == null) {
 			Main._Exit(1, "undefined start rule: " + startPoint );
@@ -91,7 +98,6 @@ public class ParsingContext {
 			this.initMemo(conf);
 		}
 		this.emptyTag = peg.newStartTag();
-		
 		ParsingObject po = new ParsingObject(this.emptyTag, this.source, 0);
 		this.left = po;
 		if(start.expr.debugMatch(this)) {
@@ -102,13 +108,14 @@ public class ParsingContext {
 			this.unusedLog = null;
 		}
 		checkUnusedText(po);
-		if(conf != null && this.stat != null) {
+		if(conf != null) {
+			conf.removeMemo(start);
 			conf.show2(this.stat);
 		}
 		return this.left;
 	}
 
-	public final boolean match(Grammar peg, String startPoint, ParsingMemoConfigure conf) {
+	public final boolean match(Grammar peg, String startPoint, MemoizationManager conf) {
 		ParsingExpression start = peg.getExpression(startPoint);
 		if(start == null) {
 			Main._Exit(1, "undefined start rule: " + startPoint );
@@ -123,7 +130,8 @@ public class ParsingContext {
 		ParsingObject po = new ParsingObject(this.emptyTag, this.source, 0);
 		this.left = po;
 		boolean res = start.debugMatch(this);
-		if(conf != null && this.stat != null) {
+		if(conf != null) {
+			conf.removeMemo(r);
 			conf.show2(this.stat);
 		}
 		return res;
@@ -146,10 +154,16 @@ public class ParsingContext {
 		return this.getClass().getSimpleName();
 	}	
 	
-	long pos;
+	public long pos;
 	long head_pos;
+	public long fpos;
+
+	boolean enableTrace = false;
+	String headTrace    = null;
+	String failureTrace = null;
+	String failureInfo  = null;
 	
-	final long getPosition() {
+	public final long getPosition() {
 		return this.pos;
 	}
 	
@@ -157,23 +171,22 @@ public class ParsingContext {
 		this.pos = pos;
 	}
 	
-	final void consume(int length) {
+	public final void consume(int length) {
 		this.pos += length;
 		if(head_pos < pos) {
 			this.head_pos = pos;
+			if(this.enableTrace) {
+				headTrace = this.stringfyCallStack();
+			}
 		}
 	}
 
-	final void rollback(long pos) {
+	public final void rollback(long pos) {
 		if(stat != null && this.pos > pos) {
-			if(stat.statBacktrack(pos, this.pos) && ParsingExpression.VerboseStack) {
-				this.dumpCallStack("Reaching: " + this.source.substring(0, this.pos) + " <= failed");
-			}
+			stat.statBacktrack(pos, this.pos);
 		}
 		this.pos = pos;
 	}
-
-	long fpos = 0;
 	ParsingMatcher[] errorbuf = new ParsingMatcher[512];
 	long[] posbuf = new long[errorbuf.length];
 
@@ -181,11 +194,11 @@ public class ParsingContext {
 		return this.left == null;
 	}
 	
-	final long rememberFailure() {
+	public final long rememberFailure() {
 		return this.fpos;
 	}
 	
-	final void forgetFailure(long fpos) {
+	public final void forgetFailure(long fpos) {
 		if(this.fpos != fpos) {
 			this.removeErrorInfo(this.fpos);
 		}
@@ -215,7 +228,7 @@ public class ParsingContext {
 		}
 	}
 
-	String getErrorMessage() {
+	public String getErrorMessage() {
 		ParsingMatcher errorInfo = this.getErrorInfo(this.fpos);
 		if(errorInfo == null) {
 			return "syntax error";
@@ -226,37 +239,16 @@ public class ParsingContext {
 	public final void failure(ParsingMatcher errorInfo) {
 		if(this.pos > fpos) {  // adding error location
 			this.fpos = this.pos;
-			//this.setErrorInfo(errorInfo);
+			if(this.enableTrace) {
+				this.failureTrace = this.stringfyCallStack();
+				this.failureInfo = errorInfo.toString();
+			}
 		}
 		this.left = null;
 	}
-	
-//	boolean isMatchingOnly = false;
-//	ParsingObject successResult = new ParsingObject(this.emptyTag, this.source, 0);
-//	
-//	final boolean isRecognitionMode() {
-//		return this.isMatchingOnly;
-//	}
-//
-//	final boolean canTransCapture() {
-//		return !this.isMatchingOnly;
-//	}
-//	
-//	final boolean setRecognitionMode(boolean recognitionMode) {
-//		boolean b = this.isMatchingOnly;
-//		this.isMatchingOnly = recognitionMode;
-//		return b;
-//	}
-	
-	final ParsingObject newParsingObject(long pos, ParsingConstructor created) {
-//		if(this.isRecognitionMode()) {
-//			this.successResult.setSourcePosition(pos);
-//			return this.successResult;
-//		}
-//		else {
-			//System.out.println("created pos="+pos + " mark=" + this.markObjectStack());
+		
+	public final ParsingObject newParsingObject(long pos, ParsingConstructor created) {
 		return new ParsingObject(this.emptyTag, this.source, pos, created);
-//		}
 	}
 
 	private class LinkLog {
@@ -285,11 +277,11 @@ public class ParsingContext {
 		this.unusedLog = log;
 	}
 	
-	int markObjectStack() {
+	public int markObjectStack() {
 		return stackSize;
 	}
 
-	void abortLinkLog(int mark) {
+	public void abortLinkLog(int mark) {
 		while(mark < this.stackSize) {
 			LinkLog l = this.logStack;
 			this.logStack = this.logStack.next;
@@ -299,7 +291,7 @@ public class ParsingContext {
 		assert(mark == this.stackSize);
 	}
 	
-	final void logLink(ParsingObject parent, int index, ParsingObject child) {
+	public final void logLink(ParsingObject parent, int index, ParsingObject child) {
 		LinkLog l = this.newLog();
 		l.childNode  = child;
 		child.parent = parent;
@@ -311,7 +303,7 @@ public class ParsingContext {
 		child = null;  // for GC
 	}
 	
-	void lazyCommit(ParsingObject left) {
+	public void lazyCommit(ParsingObject left) {
 		LinkLog l = this.newLog();
 		l.childNode  = left;
 		l.index = -9;
@@ -360,7 +352,7 @@ public class ParsingContext {
 //		newnode = null;
 //	}
 
-	final void commitLinkLog(int mark, ParsingObject newnode) {
+	public final void commitLinkLog(int mark, ParsingObject newnode) {
 		LinkLog first = null;
 		int objectSize = 0;
 		while(mark < this.stackSize) {
@@ -481,31 +473,45 @@ public class ParsingContext {
 		return false;
 	}
 	
-	UList<String> terminalStack = new UList<String>(new String[8]);
+	UList<String> callStack;
+	int[]         callPositions;
+
+	void initCallStack() {
+		if(ParsingExpression.VerboseStack) {
+			this.callStack = new UList<String>(new String[256]);
+			this.callPositions = new int[4096];
+		}
+	}
 	
 	public int pushCallStack(String uniqueName) {
-		int pos = this.terminalStack.size();
-		this.terminalStack.add(uniqueName);
+		int pos = this.callStack.size();
+		this.callStack.add(uniqueName);
+		callPositions[pos] = (int)this.pos;
 		return pos;
 	}
 
 	public void popCallStack(int stacktop) {
-		this.terminalStack.clear(stacktop);
+		this.callStack.clear(stacktop);
 	}
 
-	public void dumpCallStack(String header) {
-		System.out.print(header);
-		for(String t : this.terminalStack) {
-			System.out.print(" ");
-			System.out.print(t);
+	String stringfyCallStack() {
+		StringBuilder sb = new StringBuilder();
+		int n = 0;
+		for(String t : this.callStack) {
+			if(n > 0) {
+				sb.append(" ");
+			}
+			sb.append(t);
+			sb.append("#");
+			sb.append(this.callPositions[n]); n++;
 		}
-		System.out.println();
+		return sb.toString();
 	}
-	
-	protected ParsingMemo memoMap = null;
+ 		
+	protected MemoTable memoMap = null;
 
-	public void initMemo(ParsingMemoConfigure conf) {
-		this.memoMap = (conf == null) ? new NoParsingMemo() : conf.newMemo();
+	public void initMemo(MemoizationManager conf) {
+		this.memoMap = (conf == null) ? new NoMemoTable(0, 0) : conf.newTable(this.source.length());
 	}
 
 	final MemoEntry getMemo(long keypos, int memoPoint) {
@@ -518,15 +524,15 @@ public class ParsingContext {
 
 	private HashMap<String,Boolean> flagMap = new HashMap<String,Boolean>();
 	
-	final void setFlag(String flagName, boolean flag) {
+	public final void setFlag(String flagName, boolean flag) {
 		this.flagMap.put(flagName, flag);
 	}
 	
-	final boolean getFlag(String flagName) {
+	public final boolean getFlag(String flagName) {
 		return this.isFlag(flagMap.get(flagName));
 	}
 	
-	final boolean isFlag(Boolean f) {
+	public final boolean isFlag(Boolean f) {
 		return f == null || f.booleanValue();
 	}
 		

@@ -10,6 +10,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.TreeMap;
 
 import org.peg4d.data.RelationBuilder;
+import org.peg4d.expression.ParsingExpression;
 import org.peg4d.ext.Generator;
 
 public class Main {
@@ -17,7 +18,7 @@ public class Main {
 	public final static String  CodeName  = "yokohama";
 	public final static int     MajorVersion = 0;
 	public final static int     MinerVersion = 2;
-	public final static int     PatchLevel   = 4;
+	public final static int     PatchLevel   = 5;
 	public final static String  Version = "" + MajorVersion + "." + MinerVersion + "." + PatchLevel;
 	public final static String  Copyright = "Copyright (c) 2014, Konoha project authors";
 	public final static String  License = "BSD-Style Open Source";
@@ -83,16 +84,17 @@ public class Main {
 	public static String CSVFileName = "results.csv";
 
 	public final static void main(String[] args) {
+		//new PEG4dGrammar2();
 		parseCommandArguments(args);
-		if(FindFileIndex != -1) {
-			Grammar peg = new GrammarFactory().newGrammar("main");
-			for(int i = FindFileIndex; i < args.length; i++) {
-				peg.importGrammar(args[i]);
-			}
-			peg.verifyRules();
-			performShell2(peg);
-			return;
-		}
+//		if(FindFileIndex != -1) {
+//			Grammar peg = new GrammarFactory().newGrammar("main");
+//			for(int i = FindFileIndex; i < args.length; i++) {
+//				peg.importGrammar(args[i]);
+//			}
+//			peg.verifyRules();
+//			performShell2(peg);
+//			return;
+//		}
 		Grammar peg = GrammarFile == null ? GrammarFactory.Grammar : new GrammarFactory().newGrammar("main", GrammarFile);
 		if(PEGFormatter != null) {
 			GrammarFormatter fmt = loadGrammarFormatter(PEGFormatter);
@@ -204,21 +206,24 @@ public class Main {
 //			}
 			else if(argument.startsWith("--memo")) {
 				if(argument.equals("--memo:none")) {
-					ParsingMemoConfigure.NoMemo = true;
+					MemoizationManager.NoMemo = true;
 				}
 				else if(argument.equals("--memo:packrat")) {
-					ParsingMemoConfigure.PackratParsing = true;
+					MemoizationManager.PackratParsing = true;
 				}
-				else if(argument.equals("--memo:fifo")) {
-					ParsingMemoConfigure.FifoPackratParsing = true;
+				else if(argument.equals("--memo:window")) {
+					MemoizationManager.SlidingWindowParsing = true;
+				}
+				else if(argument.equals("--memo:slide")) {
+					MemoizationManager.SlidingLinkedParsing = true;
 				}
 				else if(argument.equals("--memo:notrace")) {
-					ParsingMemoConfigure.Tracing = false;
+					MemoizationManager.Tracing = false;
 				}
 				else {
 					int distance = ParsingCharset.parseInt(argument.substring(7), -1);
 					if(distance >= 0) {
-						ParsingMemoConfigure.BacktrackBufferSize  = distance;
+						MemoizationManager.BacktrackBufferSize  = distance;
 					}
 					else {
 						ShowUsage("unknown option: " + argument);
@@ -227,9 +232,10 @@ public class Main {
 			}
 			else if(argument.startsWith("--verbose")) {
 				if(argument.equals("--verbose:memo")) {
-					ParsingMemoConfigure.VerboseMemo = true;
+					MemoizationManager.VerboseMemo = true;
 				}
 				else if(argument.equals("--verbose:stack")) {
+					System.out.println("--verbose:stack");
 					ParsingExpression.VerboseStack = true;
 				}
 				else {
@@ -261,36 +267,13 @@ public class Main {
 		System.out.println("  -W<num>                   Warning Level (default:1)");
 		System.out.println("  -O<num>                   Optimization Level (default:2)");
 		System.out.println("  --memo:x                  Memo configuration");
-		System.out.println("     none|packrat|fifo|notrace");
+		System.out.println("     none|packrat|window|slide|notrace");
 		System.out.println("  --memo:<num>              Expected backtrack distance (default: 256)");
 		System.out.println("  --verbose                 Printing Debug infomation");
-		System.out.println("  --verbose:memo            Printing Peg/Debug infomation");
+		System.out.println("  --verbose:memo            Printing Memoization information");
 		Main._Exit(0, Message);
 	}
 	
-	static void showUsage() {
-		System.out.println(ProgName + " :");
-		System.out.println("  -p <FILE>                 Specify PEG file  default: PEG4d grammar");
-		System.out.println("  -s | --start <NAME>       Specify Non-Terminal as the starting point. default: TopLevel");
-		System.out.println("  -t <type>                 Specify output type. default: pego");
-		System.out.println("     tag|pego|none|json|csv");
-		System.out.println("  -c                        Invoke as checker (without output generation). Exit 1 when failed");
-		System.out.println("  -f | --format<type>       Specify PEG formatter");
-		System.out.println("  -W<num>                   Warning Level (default:1)");
-		System.out.println("  -O<num>                   Optimization Level (default:2)");
-		System.out.println("  --memo:x                  Memo configuration");
-		System.out.println("     no|packrat|fifo");
-		System.out.println("  -M<num>                   Memo factor (default: 100)");
-		System.out.println("  --verbose                 Printing Debug infomation");
-		System.out.println("  --verbose:peg             Printing Peg/Debug infomation");
-		
-		System.out.println("The most commonly used peg4d commands are:");
-		System.out.println("   parse      Add file contents to the index");
-		System.out.println("   query      Add file contents to the index");
-		
-		Main._Exit(0, "");
-	}
-
 	private final static UMap<Class<?>> driverMap = new UMap<Class<?>>();
 	static {
 		driverMap.put("p4d", org.peg4d.GrammarFormatter.class);
@@ -329,7 +312,38 @@ public class Main {
 		}
 		return d;
 	}
-
+	
+	private synchronized static void loadStat(Grammar peg, String fileName) {
+		String startPoint = StartingPoint;
+		ParsingSource source = null;
+		ParsingContext context = null;
+		ParsingObject po = null;
+		long bestTime = Long.MAX_VALUE;
+		ParsingStatistics stat = null;
+		for(int i = 0; i < 5; i++) {
+			source = Main.loadSource(peg, fileName);
+			context = new ParsingContext(Main.loadSource(peg, fileName));
+			stat = new ParsingStatistics(peg, source);
+			context.initStat(stat);
+			if(Main.RecognitionOnlyMode) {
+				context.match(peg, startPoint, new MemoizationManager());
+			}
+			else {
+				po = context.parse(peg, startPoint, new MemoizationManager());
+			}
+			long t = stat.end();
+			System.out.println("ErapsedTime: " + t);
+			if(t < bestTime) {
+				bestTime = t;
+			}
+			if(t > 60000 * 5) {
+				break;
+			}
+		}
+		stat.ErapsedTime = bestTime;
+		stat.end(po, context);
+	}
+	
 	private synchronized static void loadInputFile(Grammar peg, String fileName) {
 		loadInputFile(peg, fileName, null);
 	}
@@ -339,6 +353,10 @@ public class Main {
 		Main.printVerbose("FileName", fileName);
 		Main.printVerbose("Grammar", peg.getName());
 		Main.printVerbose("StartingPoint", StartingPoint);
+		if(OutputType.equalsIgnoreCase("stat")) {
+			loadStat(peg, fileName);
+			return;
+		}
 		ParsingSource source = Main.loadSource(peg, fileName);
 		ParsingContext context = new ParsingContext(Main.loadSource(peg, fileName));
 		if(Main.StatLevel == 0) {
@@ -362,7 +380,7 @@ public class Main {
 			context.initStat(new ParsingStatistics(peg, source));
 		}
 		if(Main.RecognitionOnlyMode) {
-			boolean res = context.match(peg, startPoint, new ParsingMemoConfigure());
+			boolean res = context.match(peg, startPoint, new MemoizationManager());
 			if(OutputType.equalsIgnoreCase("stat")) {
 				context.recordStat(null);
 				return;
@@ -371,7 +389,7 @@ public class Main {
 		}
 		ParsingObject pego;
 		if(parserClass == null) {
-			pego = context.parse(peg, startPoint, new ParsingMemoConfigure());
+			pego = context.parse(peg, startPoint, new MemoizationManager());
 		}
 		else {
 			pego = startParsing(context, peg, startPoint, parserClass);	// not use memoization
@@ -380,7 +398,6 @@ public class Main {
 			RelationBuilder RBuilder = new RelationBuilder();
 			RBuilder.build(pego);
 		}
-		
 		if(context.isFailure()) {
 			System.out.println(context.source.formatPositionLine("error", context.fpos, context.getErrorMessage()));
 			System.out.println(context.source.formatPositionLine("maximum matched", context.head_pos, ""));
@@ -462,7 +479,6 @@ public class Main {
 			m.put(key, n+1);
 		}
 	}
-	
 	
 	private final static void displayShellVersion(Grammar peg) {
 		Main._PrintLine(ProgName + "-" + Version + " (" + CodeName + ") on " + Main._GetPlatform());
