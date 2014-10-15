@@ -260,13 +260,11 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		
 		// compare to -1
 		this.mBuilder.push((int) -1);
-		this.mBuilder.math(GeneratorAdapter.NE, Type.INT_TYPE);
 		
 		// generate if condition
 		Label elseLabel = this.mBuilder.newLabel();
 		Label mergeLabel = this.mBuilder.newLabel();
-		this.mBuilder.push(true);
-		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, elseLabel);
+		this.mBuilder.ifCmp(Type.INT_TYPE, GeneratorAdapter.EQ, elseLabel);
 		
 		// generate if block
 		this.mBuilder.enterScope();
