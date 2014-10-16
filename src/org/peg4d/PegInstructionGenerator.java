@@ -2,6 +2,7 @@ package org.peg4d;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 import org.peg4d.expression.NonTerminal;
 import org.peg4d.expression.ParsingAnd;
@@ -28,21 +29,26 @@ import org.peg4d.expression.ParsingString;
 import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
+import org.peg4d.pegInstruction.Call;
+import org.peg4d.pegInstruction.PegInstruction;
 import org.peg4d.pegInstruction.PegMethod;
 
 public class PegInstructionGenerator extends GrammarFormatter {
 	
 	private List<PegMethod> pegMethodList;
+	private Stack<PegInstruction> pegInstStack;
 	private PegMethod method;
 	
 	public PegInstructionGenerator() {
 		this.pegMethodList = new ArrayList<PegMethod>();
+		this.pegInstStack = new Stack<PegInstruction>();
 	}
 	
 	@Override
 	public void formatRule(String ruleName, ParsingExpression e, StringBuilder sb) { // not use string builder
 		this.method = new PegMethod(ruleName);
 		e.visit(this);
+		this.method.setInst(this.pegInstStack.pop());
 		this.pegMethodList.add(this.method);
 		this.method = null;
 	}
@@ -50,7 +56,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	// visitor api
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		pegInstStack.push(new Call(e.ruleName));
 	}
 
 	@Override
