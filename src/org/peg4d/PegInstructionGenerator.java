@@ -30,6 +30,7 @@ import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
 import org.peg4d.pegInstruction.Call;
+import org.peg4d.pegInstruction.Failure;
 import org.peg4d.pegInstruction.PegInstruction;
 import org.peg4d.pegInstruction.PegMethod;
 
@@ -66,7 +67,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitFailure(ParsingFailure e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		pegInstStack.push(new Failure());
 	}
 	
 	@Override
