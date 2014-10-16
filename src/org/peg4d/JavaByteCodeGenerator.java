@@ -2,6 +2,7 @@ package org.peg4d;
 
 import org.peg4d.pegInstruction.AllocLocal;
 import org.peg4d.pegInstruction.Block;
+import org.peg4d.pegInstruction.ByteAt;
 import org.peg4d.pegInstruction.Call;
 import org.peg4d.pegInstruction.Cond;
 import org.peg4d.pegInstruction.ConstBool;
@@ -81,6 +82,11 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor {
 
 	@Override
 	public void visit(Consume inst) {
+		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+	}
+	
+	@Override
+	public void visit(ByteAt inst) {
 		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
 	}
 

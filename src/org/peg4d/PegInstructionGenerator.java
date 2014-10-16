@@ -29,8 +29,15 @@ import org.peg4d.expression.ParsingString;
 import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
+import org.peg4d.pegInstruction.Block;
+import org.peg4d.pegInstruction.ByteAt;
 import org.peg4d.pegInstruction.Call;
+import org.peg4d.pegInstruction.Cond;
+import org.peg4d.pegInstruction.ConstInt;
+import org.peg4d.pegInstruction.Consume;
 import org.peg4d.pegInstruction.Failure;
+import org.peg4d.pegInstruction.If;
+import org.peg4d.pegInstruction.OpType;
 import org.peg4d.pegInstruction.PegInstruction;
 import org.peg4d.pegInstruction.PegMethod;
 
@@ -72,7 +79,23 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	
 	@Override
 	public void visitByte(ParsingByte e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// condition
+		ByteAt byteAt = new ByteAt();
+		ConstInt constInt = new ConstInt(e.byteChar);
+		Cond cond = new Cond(int.class, OpType.EQ, byteAt, constInt);
+		
+		// then block
+		PegInstruction[] thenInsts = new PegInstruction[1];
+		thenInsts[0] = new Consume(1);
+		Block thenBlock = new Block(null, thenInsts);
+		
+		// else block
+		PegInstruction[] elseInsts = new PegInstruction[1];
+		elseInsts[0] = new Failure();
+		Block elseBlock = new Block(null, elseInsts);
+		
+		// If
+		pegInstStack.push(new If(cond, thenBlock, elseBlock));
 	}
 
 	@Override

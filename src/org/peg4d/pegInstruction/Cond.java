@@ -1,21 +1,19 @@
 package org.peg4d.pegInstruction;
 
-import org.objectweb.asm.Type;
-
 public class Cond extends PegInstruction{
-	private Type type;
+	private Class<?> type;
 	private OpType optype;
 	private PegInstruction left;
 	private PegInstruction right;
 	
-	public Cond(Type type, OpType optype, PegInstruction left, PegInstruction right) {
+	public Cond(Class<?> type, OpType optype, PegInstruction left, PegInstruction right) {
 		this.type = type;
 		this.optype = optype;
 		this.left = left;
 		this.right = right;
 	}
 	
-	public Type getType() {
+	public Class<?> getType() {
 		return this.type;
 	}
 	
@@ -38,11 +36,3 @@ public class Cond extends PegInstruction{
 	
 }
 
-enum OpType {
-	EQ,
-	NE,
-	LT,
-	LE,
-	GT,
-	GE
-}

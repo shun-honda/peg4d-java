@@ -13,6 +13,7 @@ public interface PegInstructionVisitor {
 	public abstract void visit(If inst);
 	public abstract void visit(Loop inst);
 	public abstract void visit(Consume inst);
+	public abstract void visit(ByteAt inst);
 	public abstract void visit(Failure inst);
 	public abstract void visit(IsFailed inst);
 	public abstract void visit(GetPos inst);

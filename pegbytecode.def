@@ -25,6 +25,7 @@ if (cond:node then:node else:node)
 loop (cond:node body:node)
 
 consume (n:int)
+byteAt (pos:long)
 failure()
 is_failed()
 
