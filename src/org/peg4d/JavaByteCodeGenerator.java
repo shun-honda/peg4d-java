@@ -1,5 +1,15 @@
 package org.peg4d;
 
+import java.util.List;
+
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.Method;
+import org.peg4d.jvm.ClassBuilder;
+import org.peg4d.jvm.Methods;
+import org.peg4d.jvm.ClassBuilder.MethodBuilder;
+import org.peg4d.jvm.ClassBuilder.VarEntry;
+import org.peg4d.jvm.UserDefinedClassLoader;
 import org.peg4d.pegInstruction.AllocLocal;
 import org.peg4d.pegInstruction.Block;
 import org.peg4d.pegInstruction.Call;
@@ -17,26 +27,76 @@ import org.peg4d.pegInstruction.If;
 import org.peg4d.pegInstruction.IsFailed;
 import org.peg4d.pegInstruction.Loop;
 import org.peg4d.pegInstruction.PegInstructionVisitor;
+import org.peg4d.pegInstruction.PegMethod;
 import org.peg4d.pegInstruction.SetFpos;
 import org.peg4d.pegInstruction.SetLocal;
 import org.peg4d.pegInstruction.SetNode;
 import org.peg4d.pegInstruction.SetPos;
 
-public class JavaByteCodeGenerator implements PegInstructionVisitor {
+public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
+	public final static String packagePrefix = "org/peg4d/generated/";
+
+	private static int nameSuffix = -1;
+
+	/**
+	 * for class generation
+	 */
+	private ClassBuilder cBuilder;
+
+	/**
+	 * for method generation
+	 */
+	private MethodBuilder mBuilder;
+
+	/**
+	 * contains var index of first argument(ParsingContext context)
+	 */
+	private VarEntry entry_context;
+
+	// entry point
+	public Class<?> generateParser(List<PegMethod> methodList) {
+		this.cBuilder = new ClassBuilder(packagePrefix + "GeneratedParser" + ++nameSuffix, null, null, null);
+
+		for(PegMethod pegMethod : methodList) {
+			this.mBuilder = this.cBuilder.newMethodBuilder(ACC_PUBLIC | ACC_STATIC, 
+					boolean.class, pegMethod.getMethodName(), ParsingContext.class);	//TODO: return class
+			// initialize
+			this.mBuilder.enterScope();
+			this.entry_context = this.mBuilder.defineArgument(ParsingContext.class);
+
+			// generate  method body
+			pegMethod.getInst().accept(this);
+
+			// finalize
+			this.mBuilder.exitScope();
+			this.mBuilder.returnValue();// currently return boolean value.
+			this.mBuilder.endMethod();
+		}
+
+		this.cBuilder.visitEnd();
+		byte[] byteCode = this.cBuilder.toByteArray();
+		String className = this.cBuilder.getInternalName();
+
+		// clear builder
+		this.cBuilder = null;
+		this.mBuilder = null;
+
+		return new UserDefinedClassLoader(packagePrefix).definedAndLoadClass(className, byteCode);
+	}
 
 	@Override
 	public void visit(ConstInt inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.push(inst.getValue());
 	}
 
 	@Override
 	public void visit(ConstBool inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.push(inst.getVal());
 	}
 
 	@Override
 	public void visit(ConstStr inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.push(inst.getVal());
 	}
 
 	@Override
@@ -46,7 +106,10 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor {
 
 	@Override
 	public void visit(Block inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.enterScope();
+
+
+		this.mBuilder.exitScope();
 	}
 
 	@Override
@@ -66,7 +129,9 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor {
 
 	@Override
 	public void visit(Call inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.loadFromVar(this.entry_context);
+		Method methodDesc = Methods.method(boolean.class, inst.getTarget(), ParsingContext.class);	//TODO:
+		this.mBuilder.invokeStatic(this.cBuilder.getTypeDesc(), methodDesc);
 	}
 
 	@Override
@@ -81,7 +146,8 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor {
 
 	@Override
 	public void visit(Consume inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.push(inst.getConsumeLength());
+		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "consume", int.class);
 	}
 
 	@Override
@@ -96,32 +162,41 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor {
 
 	@Override
 	public void visit(GetPos inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
 	}
 
 	@Override
 	public void visit(SetPos inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.loadFromVar(entry_context);
+		inst.getVal().accept(this);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
 	}
 
 	@Override
 	public void visit(GetFpos inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
 	}
 
 	@Override
 	public void visit(SetFpos inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		this.mBuilder.loadFromVar(entry_context);
+		inst.getVal().accept(this);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
 	}
 
 	@Override
-	public void visit(GetNode inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+	public void visit(GetNode inst) {	//get context.left
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
 	}
 
 	@Override
-	public void visit(SetNode inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+	public void visit(SetNode inst) {	// put to context.left
+		this.mBuilder.loadFromVar(this.entry_context);
+		inst.getVal().accept(this);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
 	}
 
 }
