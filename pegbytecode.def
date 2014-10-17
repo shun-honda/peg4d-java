@@ -15,7 +15,7 @@ cond (type:TYPE optype:OPTYPE left:node right:node)
 
 block (locals:node[] child:node[])
 
-alloc_local (name:String)
+alloc_local (name:String, type:TYPE)
 get_local (name:String)
 set_local (name:String val:node)
 
@@ -25,7 +25,9 @@ if (cond:node then:node else:node)
 loop (cond:node body:node)
 
 consume (n:int)
-byteAt (pos:long)
+byteAt()
+charAt()
+get_byte()
 failure()
 is_failed()
 
