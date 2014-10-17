@@ -254,6 +254,15 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 		}
 
 		/**
+		 * create new local variable
+		 * @param varClass
+		 * @return
+		 */
+		public VarEntry createNewVar(Class<?> varClass) {
+			return this.varScopes.peek().newVarEntry(varClass);
+		}
+
+		/**
 		 * create new local variable entry and store stack top value to created entry
 		 * @param varClass
 		 * @return

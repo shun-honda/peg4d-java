@@ -30,14 +30,6 @@ public class Block extends PegInstruction {
 		return this.childList;
 	}
 
-	public final int getLocalSize() {
-		return this.locals.length;
-	}
-
-	public final int getChildSize() {
-		return this.child.length;
-	}
-
 	@Override
 	public void accept(PegInstructionVisitor visitor) {
 		visitor.visit(this);
