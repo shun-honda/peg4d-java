@@ -2,6 +2,7 @@ package org.peg4d;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 import org.peg4d.expression.NonTerminal;
 import org.peg4d.expression.ParsingAnd;
@@ -28,21 +29,39 @@ import org.peg4d.expression.ParsingString;
 import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
+import org.peg4d.pegInstruction.AllocLocalInt;
+import org.peg4d.pegInstruction.Block;
+import org.peg4d.pegInstruction.GetByte;
+import org.peg4d.pegInstruction.Call;
+import org.peg4d.pegInstruction.GetChar;
+import org.peg4d.pegInstruction.Cond;
+import org.peg4d.pegInstruction.ConstInt;
+import org.peg4d.pegInstruction.Consume;
+import org.peg4d.pegInstruction.Failure;
+import org.peg4d.pegInstruction.NumOfBytes;
+import org.peg4d.pegInstruction.GetLocalInt;
+import org.peg4d.pegInstruction.If;
+import org.peg4d.pegInstruction.OpType;
+import org.peg4d.pegInstruction.PegInstruction;
 import org.peg4d.pegInstruction.PegMethod;
+import org.peg4d.pegInstruction.SetLocalInt;
 
 public class PegInstructionGenerator extends GrammarFormatter {
 	
 	private List<PegMethod> pegMethodList;
+	private Stack<PegInstruction> pegInstStack;
 	private PegMethod method;
 	
 	public PegInstructionGenerator() {
 		this.pegMethodList = new ArrayList<PegMethod>();
+		this.pegInstStack = new Stack<PegInstruction>();
 	}
 	
 	@Override
 	public void formatRule(String ruleName, ParsingExpression e, StringBuilder sb) { // not use string builder
 		this.method = new PegMethod(ruleName);
 		e.visit(this);
+		this.method.setInst(this.pegInstStack.pop());
 		this.pegMethodList.add(this.method);
 		this.method = null;
 	}
@@ -50,7 +69,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	// visitor api
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.pegInstStack.push(new Call(e.ruleName));
 	}
 
 	@Override
@@ -60,17 +79,42 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitFailure(ParsingFailure e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.pegInstStack.push(new Failure());
 	}
 	
 	@Override
 	public void visitByte(ParsingByte e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// condition
+		GetByte byteAt = new GetByte();
+		ConstInt constInt = new ConstInt(e.byteChar);
+		Cond cond = new Cond(int.class, OpType.EQ, byteAt, constInt);
+		
+		// then block
+		Block thenBlock = new Block().appendChild(new ConstInt(1));
+		
+		// else block
+		Block elseBlock = new Block().appendChild(new Failure());
+		
+		// If
+		this.pegInstStack.push(new If(cond, thenBlock, elseBlock));
 	}
 
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		
+		// first condition
+		Cond firstcond = new Cond(int.class, OpType.GE, new GetLocalInt("ch"), new ConstInt(e.startByteChar));
+		If firstIf = new If(firstcond, new Consume(new ConstInt(1)), new Failure());
+		
+		// second condition
+		Cond secondcond = new Cond(int.class, OpType.LE, new GetLocalInt("ch"), new ConstInt(e.startByteChar));
+		
+		// Block
+		Block block = new Block().appendChild(new If(secondcond, firstIf, new Failure()))
+									.appendLocal(new AllocLocalInt("ch"))
+									.appendLocal(new SetLocalInt("ch", new GetByte()));
+		
+		this.pegInstStack.push(block);
 	}
 
 	@Override
@@ -80,7 +124,17 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitAny(ParsingAny e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// condition
+		Cond cond = new Cond(int.class, OpType.NE, new GetChar(), new ConstInt(-1));
+		
+		// then Block
+		Block thenBlock = new Block().appendChild(new Consume(new GetLocalInt("len")))
+										.appendLocal(new AllocLocalInt("len"))
+										.appendLocal(new SetLocalInt("len", new NumOfBytes()));
+		
+		// If
+		If If = new If(cond, thenBlock, new Failure());
+		this.pegInstStack.push(If);
 	}
 
 	@Override
