@@ -1,14 +1,14 @@
 package org.peg4d.pegInstruction;
 
 public class Consume extends PegInstruction {
-	private int n;
+	private PegInstruction len;
 	
-	public Consume(int n) {
-		this.n = n;
+	public Consume(PegInstruction len) {
+		this.len = len;
 	}
 	
-	public final int getConsumeLength() {
-		return this.n;
+	public final PegInstruction getConsumeLength() {
+		return this.len;
 	}
 	
 	@Override

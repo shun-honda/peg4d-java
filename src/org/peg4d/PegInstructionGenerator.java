@@ -33,10 +33,12 @@ import org.peg4d.pegInstruction.AllocLocal;
 import org.peg4d.pegInstruction.Block;
 import org.peg4d.pegInstruction.ByteAt;
 import org.peg4d.pegInstruction.Call;
+import org.peg4d.pegInstruction.CharAt;
 import org.peg4d.pegInstruction.Cond;
 import org.peg4d.pegInstruction.ConstInt;
 import org.peg4d.pegInstruction.Consume;
 import org.peg4d.pegInstruction.Failure;
+import org.peg4d.pegInstruction.GetByte;
 import org.peg4d.pegInstruction.GetLocal;
 import org.peg4d.pegInstruction.If;
 import org.peg4d.pegInstruction.OpType;
@@ -128,7 +130,20 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitAny(ParsingAny e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		// condition
+		Cond cond = new Cond(int.class, OpType.NE, new CharAt(), new ConstInt(-1));
+		
+		// then Block
+		PegInstruction[] locals = new PegInstruction[2];
+		locals[0] = new AllocLocal("len", int.class);
+		locals[1] = new SetLocal("len", new GetByte());
+		PegInstruction[] child = new PegInstruction[1];
+		child[0] = new Consume(new GetLocal("len"));
+		Block thenBlock = new Block(locals, child);
+		
+		// If
+		If If = new If(cond, thenBlock, new Failure());
+		this.pegInstStack.push(If);
 	}
 
 	@Override
