@@ -29,6 +29,7 @@ import org.peg4d.expression.ParsingString;
 import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
+import org.peg4d.pegInstruction.AllocLocal;
 import org.peg4d.pegInstruction.Block;
 import org.peg4d.pegInstruction.ByteAt;
 import org.peg4d.pegInstruction.Call;
@@ -36,10 +37,12 @@ import org.peg4d.pegInstruction.Cond;
 import org.peg4d.pegInstruction.ConstInt;
 import org.peg4d.pegInstruction.Consume;
 import org.peg4d.pegInstruction.Failure;
+import org.peg4d.pegInstruction.GetLocal;
 import org.peg4d.pegInstruction.If;
 import org.peg4d.pegInstruction.OpType;
 import org.peg4d.pegInstruction.PegInstruction;
 import org.peg4d.pegInstruction.PegMethod;
+import org.peg4d.pegInstruction.SetLocal;
 
 public class PegInstructionGenerator extends GrammarFormatter {
 	
@@ -100,7 +103,22 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		PegInstruction[] locals = new PegInstruction[2];
+		locals[0] = new AllocLocal("ch", int.class);
+		locals[1] = new SetLocal("ch", new ByteAt());
+		
+		// first condition
+		Cond firstcond = new Cond(int.class, OpType.GE, new GetLocal("ch"), new ConstInt(e.startByteChar));
+		If firstIf = new If(firstcond, new Consume(1), new Failure());
+		
+		// second condition
+		Cond scondcond = new Cond(int.class, OpType.LE, new GetLocal("ch"), new ConstInt(e.startByteChar));
+		
+		// If
+		PegInstruction[] child = new PegInstruction[1];
+		child[0] = new If(scondcond, firstIf, new Failure());
+		Block block = new Block(locals, child);
+		pegInstStack.push(block);
 	}
 
 	@Override
