@@ -135,7 +135,7 @@ public class OldStyleJavaByteCodeGenerator extends GrammarFormatter implements O
 
 		// then
 		this.mBuilder.mark(thenLabel);
-		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.dup();
 		this.mBuilder.getField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
 		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
@@ -152,6 +152,14 @@ public class OldStyleJavaByteCodeGenerator extends GrammarFormatter implements O
 	private void getFieldOfContext(String fieldName, Class<?> fieldClass) {
 		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.getField(Type.getType(ParsingContext.class), fieldName, Type.getType(fieldClass));
+	}
+
+	private void newParsingTag(String tagName) {
+		Type typeDesc = Type.getType(ParsingTag.class);
+		this.mBuilder.newInstance(typeDesc);
+		this.mBuilder.dup();
+		this.mBuilder.push(tagName);	// push tag name
+		this.mBuilder.invokeConstructor(typeDesc, Methods.constructor(String.class));
 	}
 
 	// visitor api
@@ -301,14 +309,7 @@ public class OldStyleJavaByteCodeGenerator extends GrammarFormatter implements O
 	@Override
 	public void visitTagging(ParsingTagging e) {
 		this.getFieldOfContext("left", ParsingObject.class);
-
-		// new ParsingTag(String tagName)
-		Type typeDesc = Type.getType(ParsingTag.class);
-		this.mBuilder.newInstance(typeDesc);
-		this.mBuilder.dup();
-		this.mBuilder.push(e.tag.toString());	// push tag name
-		this.mBuilder.invokeConstructor(typeDesc, Methods.constructor(String.class));
-
+		this.newParsingTag(e.tag.toString());
 		this.mBuilder.callInstanceMethod(ParsingObject.class, void.class, "setTag", ParsingTag.class);
 		this.mBuilder.push(true);
 	}
@@ -729,7 +730,98 @@ public class OldStyleJavaByteCodeGenerator extends GrammarFormatter implements O
 
 	@Override
 	public void visitConstructor(ParsingConstructor e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.mBuilder.enterScope();
+
+		// variable
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_getPosition);
+		VarEntry entry_startIndex = this.mBuilder.createNewVarAndStore(long.class);
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_markObjectStack);
+		VarEntry entry_mark = this.mBuilder.createNewVarAndStore(int.class);
+
+		// new parsingObject
+		Type parsingObjectTypeDesc = Type.getType(ParsingObject.class);
+		this.mBuilder.newInstance(parsingObjectTypeDesc);
+		this.mBuilder.dup();
+		this.newParsingTag("Text");
+		this.getFieldOfContext("source", ParsingSource.class);
+		
+		// call objectId
+		this.mBuilder.loadFromVar(entry_startIndex);
+		this.mBuilder.push(e.uniqueId);
+		this.mBuilder.callStaticMethod(ParsingUtils.class, 
+				long.class, "objectId", long.class, short.class);
+
+		this.mBuilder.invokeConstructor(parsingObjectTypeDesc, 
+				Methods.constructor(ParsingTag.class, ParsingSource.class, long.class));
+		VarEntry entry_newnode = this.mBuilder.createNewVarAndStore(ParsingObject.class);
+
+		if(e.leftJoin) {
+			this.mBuilder.loadFromVar(this.entry_context);
+			this.getFieldOfContext("left", ParsingObject.class);
+			this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "lazyCommit", ParsingObject.class);
+	
+			this.mBuilder.loadFromVar(this.entry_context);
+			this.mBuilder.loadFromVar(entry_newnode);
+			this.mBuilder.push(0);
+			this.getFieldOfContext("left", ParsingObject.class);
+			this.mBuilder.callInvocationTarget(this.target_logLink);
+		}
+
+		// put to context.left
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_newnode);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+
+
+		Label thenLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		for(int i = 0; i < e.size(); i++) {	// only support prefetchIdnex = 0
+			e.get(i).visit(this);
+			this.mBuilder.push(true);
+			this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, thenLabel);
+		}
+		// else
+		this.mBuilder.loadFromVar(entry_newnode);
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_getPosition);
+		this.mBuilder.loadFromVar(entry_startIndex);
+		this.mBuilder.math(GeneratorAdapter.SUB, Type.LONG_TYPE);
+		this.mBuilder.cast(Type.LONG_TYPE, Type.INT_TYPE);
+
+		this.mBuilder.callInstanceMethod(ParsingObject.class, void.class, "setLength", int.class);
+
+		// put to context.left
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_newnode);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+//		this.mBuilder.pushNull();
+//		this.mBuilder.storeToVar(entry_newnode);
+		this.mBuilder.push(true);
+
+		this.mBuilder.goTo(mergeLabel);
+
+		// then
+		this.mBuilder.mark(thenLabel);
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_mark);
+		this.mBuilder.callInvocationTarget(this.target_abortLinkLog);
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_startIndex);
+		this.mBuilder.callInvocationTarget(this.target_rollback);
+//		this.mBuilder.pushNull();
+//		this.mBuilder.storeToVar(entry_newnode);
+		this.mBuilder.push(false);
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+
+		this.mBuilder.exitScope();
 	}
 
 	@Override
