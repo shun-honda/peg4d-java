@@ -29,22 +29,22 @@ import org.peg4d.expression.ParsingString;
 import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
-import org.peg4d.pegInstruction.AllocLocal;
+import org.peg4d.pegInstruction.AllocLocalInt;
 import org.peg4d.pegInstruction.Block;
-import org.peg4d.pegInstruction.ByteAt;
+import org.peg4d.pegInstruction.GetByte;
 import org.peg4d.pegInstruction.Call;
-import org.peg4d.pegInstruction.CharAt;
+import org.peg4d.pegInstruction.GetChar;
 import org.peg4d.pegInstruction.Cond;
 import org.peg4d.pegInstruction.ConstInt;
 import org.peg4d.pegInstruction.Consume;
 import org.peg4d.pegInstruction.Failure;
-import org.peg4d.pegInstruction.GetByte;
-import org.peg4d.pegInstruction.GetLocal;
+import org.peg4d.pegInstruction.NumOfBytes;
+import org.peg4d.pegInstruction.GetLocalInt;
 import org.peg4d.pegInstruction.If;
 import org.peg4d.pegInstruction.OpType;
 import org.peg4d.pegInstruction.PegInstruction;
 import org.peg4d.pegInstruction.PegMethod;
-import org.peg4d.pegInstruction.SetLocal;
+import org.peg4d.pegInstruction.SetLocalInt;
 
 public class PegInstructionGenerator extends GrammarFormatter {
 	
@@ -85,7 +85,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	@Override
 	public void visitByte(ParsingByte e) {
 		// condition
-		ByteAt byteAt = new ByteAt();
+		GetByte byteAt = new GetByte();
 		ConstInt constInt = new ConstInt(e.byteChar);
 		Cond cond = new Cond(int.class, OpType.EQ, byteAt, constInt);
 		
@@ -103,16 +103,16 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	public void visitByteRange(ParsingByteRange e) {
 		
 		// first condition
-		Cond firstcond = new Cond(int.class, OpType.GE, new GetLocal("ch"), new ConstInt(e.startByteChar));
+		Cond firstcond = new Cond(int.class, OpType.GE, new GetLocalInt("ch"), new ConstInt(e.startByteChar));
 		If firstIf = new If(firstcond, new Consume(new ConstInt(1)), new Failure());
 		
 		// second condition
-		Cond secondcond = new Cond(int.class, OpType.LE, new GetLocal("ch"), new ConstInt(e.startByteChar));
+		Cond secondcond = new Cond(int.class, OpType.LE, new GetLocalInt("ch"), new ConstInt(e.startByteChar));
 		
 		// Block
 		Block block = new Block().appendChild(new If(secondcond, firstIf, new Failure()))
-									.appendLocal(new AllocLocal("ch", int.class))
-									.appendLocal(new SetLocal("ch", new ByteAt()));
+									.appendLocal(new AllocLocalInt("ch"))
+									.appendLocal(new SetLocalInt("ch", new GetByte()));
 		
 		this.pegInstStack.push(block);
 	}
@@ -125,12 +125,12 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	@Override
 	public void visitAny(ParsingAny e) {
 		// condition
-		Cond cond = new Cond(int.class, OpType.NE, new CharAt(), new ConstInt(-1));
+		Cond cond = new Cond(int.class, OpType.NE, new GetChar(), new ConstInt(-1));
 		
 		// then Block
-		Block thenBlock = new Block().appendChild(new Consume(new GetLocal("len")))
-										.appendLocal(new AllocLocal("len", int.class))
-										.appendLocal(new SetLocal("len", new GetByte()));
+		Block thenBlock = new Block().appendChild(new Consume(new GetLocalInt("len")))
+										.appendLocal(new AllocLocalInt("len"))
+										.appendLocal(new SetLocalInt("len", new NumOfBytes()));
 		
 		// If
 		If If = new If(cond, thenBlock, new Failure());
