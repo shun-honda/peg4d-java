@@ -207,6 +207,8 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
+		this.mBuilder.enterScope();
+
 		// generate byteAt
 		this.getFieldOfContext("source", ParsingSource.class);
 		this.getFieldOfContext("pos", long.class);
@@ -248,6 +250,7 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 		// merge
 		this.mBuilder.mark(mergeLabel);
+		this.mBuilder.exitScope();
 	}
 
 	@Override
@@ -310,18 +313,70 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		throw new RuntimeException("unimplemented visit method: " + e.getClass());
 	}
 
-	@Override
-	public void visitUnary(ParsingUnary e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
-	}
+//	@Override
+//	public void visitUnary(ParsingUnary e) {
+//		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+//	}
 
 	@Override
 	public void visitNot(ParsingNot e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.mBuilder.enterScope();
+
+		// variable
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_getPosition);
+		VarEntry entry_pos = this.mBuilder.createNewVarAndStore(long.class);
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_rememberFailure);
+		VarEntry entry_f = this.mBuilder.createNewVarAndStore(long.class);
+
+		this.getFieldOfContext("left", ParsingObject.class);
+		VarEntry entry_left = this.mBuilder.createNewVarAndStore(ParsingObject.class);
+
+		// if cond
+		Label thenLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		e.inner.visit(this);
+		this.mBuilder.push(true);
+		this.mBuilder.ifICmp(Type.BOOLEAN, thenLabel);
+
+		// else
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_pos);
+		this.mBuilder.callInvocationTarget(this.target_rollback);
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_f);
+		this.mBuilder.callInvocationTarget(this.target_forgetFailure);
+
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.loadFromVar(entry_left);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+//		this.mBuilder.pushNull();
+//		this.mBuilder.storeToVar(entry_left);
+		this.mBuilder.push(true);
+
+		// then
+		this.mBuilder.mark(thenLabel);
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_pos);
+		this.mBuilder.callInvocationTarget(this.target_rollback);
+		this.generateFailure();
+//		this.mBuilder.pushNull();
+//		this.mBuilder.storeToVar(entry_left);
+		this.mBuilder.push(false);
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+		this.mBuilder.exitScope();
 	}
 
 	@Override
 	public void visitAnd(ParsingAnd e) {
+		this.mBuilder.enterScope();
+
 		// generate getPosition
 		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.callInvocationTarget(this.target_getPosition);
@@ -354,11 +409,48 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		this.mBuilder.push(true);
 		// merge
 		this.mBuilder.mark(mergeLabel);
+		this.mBuilder.exitScope();
 	}
 
 	@Override
 	public void visitOptional(ParsingOption e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.mBuilder.enterScope();
+
+		// variable
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_rememberFailure);
+		VarEntry entry_f = this.mBuilder.createNewVarAndStore(long.class);
+
+		this.getFieldOfContext("left", ParsingObject.class);
+		VarEntry entry_left = this.mBuilder.createNewVarAndStore(ParsingObject.class);
+
+		// if cond
+		Label thenLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		e.inner.visit(this);
+		this.mBuilder.push(true);
+		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, thenLabel);
+
+		// else
+		this.mBuilder.goTo(mergeLabel);
+
+		// then
+		this.mBuilder.mark(thenLabel);
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_left);
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_f);
+		this.mBuilder.callInvocationTarget(this.target_forgetFailure);
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+//		this.mBuilder.pushNull();
+//		this.mBuilder.storeToVar(entry_left);
+		this.mBuilder.push(true);
+		this.mBuilder.exitScope();
 	}
 
 	@Override
@@ -376,10 +468,10 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		throw new RuntimeException("unimplemented visit method: " + e.getClass());
 	}
 
-	@Override
-	public void visitList(ParsingList e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
-	}
+//	@Override
+//	public void visitList(ParsingList e) {
+//		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+//	}
 
 	@Override
 	public void visitSequence(ParsingSequence e) {
