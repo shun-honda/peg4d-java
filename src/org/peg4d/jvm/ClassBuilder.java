@@ -329,6 +329,23 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 			Method methodDesc = Methods.method(returnClass, methodName, paramClasses);
 			this.invokeStatic(Type.getType(ownerClass), methodDesc);
 		}
+
+		/**
+		 * only support invokestatic, invokevirtual
+		 * @param target
+		 */
+		public void callInvocationTarget(InvocationTarget target) {
+			switch(target.getInvocationType()) {
+			case INVOKE_STATIC:
+				this.invokeStatic(target.getOwnerTypeDesc(), target.getMethodDesc());
+				break;
+			case INVOKE_VIRTUAL:
+				this.invokeVirtual(target.getOwnerTypeDesc(), target.getMethodDesc());
+				break;
+			default:
+				break;
+			}
+		}
 	}
 
 	public static class TryCatchLabel {
