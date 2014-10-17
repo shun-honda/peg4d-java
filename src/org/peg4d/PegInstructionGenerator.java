@@ -90,14 +90,10 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		Cond cond = new Cond(int.class, OpType.EQ, byteAt, constInt);
 		
 		// then block
-		PegInstruction[] thenInsts = new PegInstruction[1];
-		thenInsts[0] = new Consume(new ConstInt(1));
-		Block thenBlock = new Block(null, thenInsts);
+		Block thenBlock = new Block().appendChild(new ConstInt(1));
 		
 		// else block
-		PegInstruction[] elseInsts = new PegInstruction[1];
-		elseInsts[0] = new Failure();
-		Block elseBlock = new Block(null, elseInsts);
+		Block elseBlock = new Block().appendChild(new Failure());
 		
 		// If
 		this.pegInstStack.push(new If(cond, thenBlock, elseBlock));
@@ -105,21 +101,19 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
-		PegInstruction[] locals = new PegInstruction[2];
-		locals[0] = new AllocLocal("ch", int.class);
-		locals[1] = new SetLocal("ch", new ByteAt());
 		
 		// first condition
 		Cond firstcond = new Cond(int.class, OpType.GE, new GetLocal("ch"), new ConstInt(e.startByteChar));
 		If firstIf = new If(firstcond, new Consume(new ConstInt(1)), new Failure());
 		
 		// second condition
-		Cond scondcond = new Cond(int.class, OpType.LE, new GetLocal("ch"), new ConstInt(e.startByteChar));
+		Cond secondcond = new Cond(int.class, OpType.LE, new GetLocal("ch"), new ConstInt(e.startByteChar));
 		
-		// If
-		PegInstruction[] child = new PegInstruction[1];
-		child[0] = new If(scondcond, firstIf, new Failure());
-		Block block = new Block(locals, child);
+		// Block
+		Block block = new Block().appendChild(new If(secondcond, firstIf, new Failure()))
+									.appendLocal(new AllocLocal("ch", int.class))
+									.appendLocal(new SetLocal("ch", new ByteAt()));
+		
 		this.pegInstStack.push(block);
 	}
 
@@ -134,12 +128,9 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		Cond cond = new Cond(int.class, OpType.NE, new CharAt(), new ConstInt(-1));
 		
 		// then Block
-		PegInstruction[] locals = new PegInstruction[2];
-		locals[0] = new AllocLocal("len", int.class);
-		locals[1] = new SetLocal("len", new GetByte());
-		PegInstruction[] child = new PegInstruction[1];
-		child[0] = new Consume(new GetLocal("len"));
-		Block thenBlock = new Block(locals, child);
+		Block thenBlock = new Block().appendChild(new Consume(new GetLocal("len")))
+										.appendLocal(new AllocLocal("len", int.class))
+										.appendLocal(new SetLocal("len", new GetByte()));
 		
 		// If
 		If If = new If(cond, thenBlock, new Failure());
