@@ -31,14 +31,15 @@ import org.peg4d.expression.ParsingTagging;
 import org.peg4d.expression.ParsingUnary;
 import org.peg4d.expression.ParsingValue;
 import org.peg4d.jvm.ClassBuilder;
+import org.peg4d.jvm.InvocationTarget;
+import static org.peg4d.jvm.InvocationTarget.*;
 import org.peg4d.jvm.Methods;
 import org.peg4d.jvm.UserDefinedClassLoader;
 import org.peg4d.jvm.ClassBuilder.MethodBuilder;
 import org.peg4d.jvm.ClassBuilder.VarEntry;
 
 public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
-	//private final static String packagePrefix = "org/peg4d/genrated/";
-	public final static String packagePrefix = "org/peg4d/";
+	private final static String packagePrefix = "org/peg4d/generated/";
 
 	private static int nameSuffix = -1;
 
@@ -52,7 +53,19 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	/**
 	 * represents argument (ParsingContext ctx)
 	 */
-	private VarEntry argEntry;
+	private VarEntry entry_context;
+
+	// invocation target
+	InvocationTarget target_byteAt = newVirtualTarget(ParsingSource.class, int.class, "byteAt", long.class);
+	InvocationTarget target_consume = newVirtualTarget(ParsingContext.class, void.class, "consume", int.class);
+	InvocationTarget target_getPosition = newVirtualTarget(ParsingContext.class, long.class, "getPosition");
+	InvocationTarget target_rollback = newVirtualTarget(ParsingContext.class, void.class, "rollback", long.class);
+	InvocationTarget target_isFailure = newVirtualTarget(ParsingContext.class, boolean.class, "isFailure");
+	InvocationTarget target_markObjectStack = newVirtualTarget(ParsingContext.class, int.class, "markObjectStack");
+	InvocationTarget target_abortLinkLog = newVirtualTarget(ParsingContext.class, void.class, "abortLinkLog", int.class);
+	InvocationTarget target_rememberFailure = newVirtualTarget(ParsingContext.class, long.class, "rememberFailure");
+	InvocationTarget target_forgetFailure = newVirtualTarget(ParsingContext.class, void.class, "forgetFailure", long.class);
+
 
 	@Override
 	public String getDesc() {
@@ -82,7 +95,7 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 		// initialize
 		this.mBuilder.enterScope(); // enter block scope
-		this.argEntry = this.mBuilder.defineArgument(ParsingContext.class);	// represent first argument of generating method
+		this.entry_context = this.mBuilder.defineArgument(ParsingContext.class);	// represent first argument of generating method
 
 		// generate method body
 		e.visit(this);
@@ -105,27 +118,29 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	// helper method.
 	private void generateFailure() { // generate equivalent code to ParsingContext#failure
-		// if cond
-		Label elseLabel = this.mBuilder.newLabel();
+		Label thenLabel = this.mBuilder.newLabel();
 		Label mergeLabel = this.mBuilder.newLabel();
 
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.generateFieldAccessOfParsingContext("fpos", long.class);
-		this.mBuilder.ifCmp(Type.LONG_TYPE, GeneratorAdapter.NE, elseLabel);
+		// if cond
+		this.getFieldOfContext("pos", long.class);
+		this.getFieldOfContext("fpos", long.class);
 
-		// if block
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.LONG_TYPE);
-		this.mBuilder.goTo(mergeLabel);
+		this.mBuilder.ifCmp(Type.LONG_TYPE, GeneratorAdapter.GT, thenLabel);
 
-		// else block
-		this.mBuilder.mark(elseLabel);
-		this.mBuilder.loadFromVar(this.argEntry);
+		// else
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.pushNull();
 		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+		this.mBuilder.goTo(mergeLabel);
 
-		// merge
+		// then
+		this.mBuilder.mark(thenLabel);
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.dup();
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
+
+		//merge
 		this.mBuilder.mark(mergeLabel);
 	}
 
@@ -134,8 +149,8 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	 * @param fieldName
 	 * @param fieldClass
 	 */
-	private void generateFieldAccessOfParsingContext(String fieldName, Class<?> fieldClass) {
-		this.mBuilder.loadFromVar(this.argEntry);
+	private void getFieldOfContext(String fieldName, Class<?> fieldClass) {
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.getField(Type.getType(ParsingContext.class), fieldName, Type.getType(fieldClass));
 	}
 
@@ -143,7 +158,7 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
 		Method methodDesc = Methods.method(boolean.class, e.ruleName, ParsingContext.class);
-		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.invokeStatic(this.cBuilder.getTypeDesc(), methodDesc);
 	}
 
@@ -165,28 +180,21 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		Label mergeLabel = this.mBuilder.newLabel();
 
 		// generate byteAt
-		Method methodDesc_byteAt = Methods.method(int.class, "byteAt", long.class);
 
-		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_byteAt);
+		this.getFieldOfContext("source", ParsingSource.class);
+		this.getFieldOfContext("pos", long.class);
+		this.mBuilder.callInvocationTarget(this.target_byteAt);
 
 		// push byteChar
 		this.mBuilder.push(e.byteChar);
 		this.mBuilder.ifCmp(Type.INT_TYPE, GeneratorAdapter.NE, elseLabel);
 
 		// generate if block
-		this.mBuilder.enterScope();
-
-		Method methodDesc_consume = Methods.method(void.class, "consume", int.class);
-
-		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.push((int) 1);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_consume);
+		this.mBuilder.callInvocationTarget(this.target_consume);
 		this.mBuilder.push(true);
 		this.mBuilder.goTo(mergeLabel);
-
-		this.mBuilder.exitScope();
 
 		// generate else block
 		this.mBuilder.mark(elseLabel);
@@ -200,42 +208,40 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	@Override
 	public void visitByteRange(ParsingByteRange e) {
 		// generate byteAt
-		Method methodDesc_byteAt = Methods.method(int.class, "byteAt", long.class);
+		this.getFieldOfContext("source", ParsingSource.class);
+		this.getFieldOfContext("pos", long.class);
+		this.mBuilder.callInvocationTarget(this.target_byteAt);
 
-		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_byteAt);
-		
 		// generate variable
 		VarEntry entry_ch = this.mBuilder.createNewVarAndStore(int.class);
-		
-		// compare to ByteRange
-		this.mBuilder.push(e.startByteChar);
-		this.mBuilder.math(GeneratorAdapter.GE, Type.INT_TYPE);
-		
-		this.mBuilder.loadFromVar(entry_ch);
-		this.mBuilder.push(e.endByteChar);
-		this.mBuilder.math(GeneratorAdapter.LE, Type.INT_TYPE);
-		
-		this.mBuilder.math(GeneratorAdapter.AND, Type.INT_TYPE);
-		
-		// generate if condition
+
+		Label andRightLabel = this.mBuilder.newLabel();
+		Label thenLabel = this.mBuilder.newLabel();
 		Label elseLabel = this.mBuilder.newLabel();
 		Label mergeLabel = this.mBuilder.newLabel();
-		this.mBuilder.push(true);
-		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NE, elseLabel);
-		
-		// generate if block
-		
-		Method methodDesc_consume = Methods.method(void.class, "consume", int.class);
 
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.mBuilder.push((int) 1);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_consume);
+		// and left
+		this.getFieldOfContext("startByteChar", int.class);
+		this.mBuilder.loadFromVar(entry_ch);
+		this.mBuilder.ifCmp(Type.INT_TYPE, GeneratorAdapter.LE, andRightLabel);
+		this.mBuilder.goTo(elseLabel);
+
+		// and right
+		this.mBuilder.mark(andRightLabel);
+		this.mBuilder.loadFromVar(entry_ch);
+		this.getFieldOfContext("endByteChar", int.class);
+		this.mBuilder.ifCmp(Type.INT_TYPE, GeneratorAdapter.LE, thenLabel);
+		this.mBuilder.goTo(elseLabel);
+
+		// then
+		this.mBuilder.mark(thenLabel);
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.push(1);
+		this.mBuilder.callInvocationTarget(this.target_consume);
 		this.mBuilder.push(true);
 		this.mBuilder.goTo(mergeLabel);
-		
-		// generate else block
+
+		// else 
 		this.mBuilder.mark(elseLabel);
 		this.generateFailure();
 		this.mBuilder.push(false);
@@ -252,33 +258,29 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	@Override
 	public void visitAny(ParsingAny e) {
 		// generate charAt
-		Method methodDesc_charAt = Methods.method(int.class, "charAt", long.class);
-		
-		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_charAt);
-		
+		this.getFieldOfContext("source", ParsingSource.class);
+		this.getFieldOfContext("pos", long.class);
+		this.mBuilder.callInstanceMethod(ParsingSource.class, int.class, "charAt", long.class);
+
 		// compare to -1
 		this.mBuilder.push((int) -1);
-		
+
 		// generate if condition
 		Label elseLabel = this.mBuilder.newLabel();
 		Label mergeLabel = this.mBuilder.newLabel();
 		this.mBuilder.ifCmp(Type.INT_TYPE, GeneratorAdapter.EQ, elseLabel);
-		
+
 		// generate if block
 		this.mBuilder.enterScope();
-		Method methodDesc_charLength = Methods.method(int.class, "charLength", long.class);
-		this.generateFieldAccessOfParsingContext("source", ParsingSource.class);
-		this.generateFieldAccessOfParsingContext("pos", long.class);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingSource.class), methodDesc_charLength);
+		this.getFieldOfContext("source", ParsingSource.class);
+		this.getFieldOfContext("pos", long.class);
+		this.mBuilder.callInstanceMethod(ParsingSource.class, int.class, "charLength", long.class);
+
 		VarEntry entry_len = this.mBuilder.createNewVarAndStore(int.class);
-		
-		Method methodDesc_consume = Methods.method(void.class, "consume", int.class);
-		
-		this.mBuilder.loadFromVar(this.argEntry);
+
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.loadFromVar(entry_len);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_consume);
+		this.mBuilder.callInvocationTarget(this.target_consume);
 		this.mBuilder.push(true);
 		this.mBuilder.goTo(mergeLabel);
 		
@@ -321,27 +323,37 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	@Override
 	public void visitAnd(ParsingAnd e) {
 		// generate getPosition
-		Method methodDesc_getPosition = Methods.method(long.class, "getPosition");
-		
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_getPosition);
-		
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_getPosition);
+
 		// generate variable
 		VarEntry entry_pos = this.mBuilder.createNewVarAndStore(long.class);
-		
+
 		e.visit(this);
-		
+
 		// generate rollback
-		Method methodDesc_rollback = Methods.method(void.class, "rollback", long.class);
-		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.loadFromVar(entry_pos);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_rollback);
+		this.mBuilder.callInvocationTarget(this.target_rollback);
 		
 		// generate isFailure
-		Method methodDesc_isFailure = Methods.method(void.class, "isFailure", boolean.class);
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.mBuilder.invokeVirtual(Type.getType(ParsingContext.class), methodDesc_isFailure);
-		this.mBuilder.math(GeneratorAdapter.NEG, Type.BOOLEAN_TYPE);
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_isFailure);
+
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		this.mBuilder.push(true);
+		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.NEG, elseLabel);
+		// then
+		this.mBuilder.push(false);
+		this.mBuilder.goTo(mergeLabel);
+
+		// else
+		this.mBuilder.mark(elseLabel);
+		this.mBuilder.push(true);
+		// merge
+		this.mBuilder.mark(mergeLabel);
 	}
 
 	@Override
@@ -374,14 +386,15 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		this.mBuilder.enterScope();
 
 		// generate context.getPosition
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.mBuilder.callInstanceMethod(ParsingContext.class, long.class, "getPosition");
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_getPosition);
+
 		// store to pos
 		VarEntry entry_pos = this.mBuilder.createNewVarAndStore(long.class);
 
 		// generate context.markObjectStack
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.mBuilder.callInstanceMethod(ParsingContext.class, int.class, "markObjectStack");
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_markObjectStack);
 		// store to mark
 		VarEntry entry_mark = this.mBuilder.createNewVarAndStore(int.class);
 
@@ -402,14 +415,14 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		// break
 		this.mBuilder.mark(breakLabel);
 		// generate abortLinkLog
-		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.loadFromVar(entry_mark);
-		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "abortLinkLog", int.class);
+		this.mBuilder.callInvocationTarget(this.target_abortLinkLog);
 
 		// generate rollback
-		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.loadFromVar(entry_pos);
-		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "rollback", long.class);
+		this.mBuilder.callInvocationTarget(this.target_rollback);
 
 		// save return value
 		this.mBuilder.push(false);
@@ -427,12 +440,12 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		this.mBuilder.enterScope();
 
 		// generate context.rememberFailure and store to f
-		this.mBuilder.loadFromVar(this.argEntry);
-		this.mBuilder.callInstanceMethod(ParsingContext.class, long.class, "rememberFailure");
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_rememberFailure);
 		VarEntry entry_f = this.mBuilder.createNewVarAndStore(long.class);
 
 		// generate context.left and store to left
-		this.generateFieldAccessOfParsingContext("left", ParsingObject.class);
+		this.getFieldOfContext("left", ParsingObject.class);
 		VarEntry entry_left = this.mBuilder.createNewVarAndStore(ParsingObject.class);
 
 		// temporary contains return value
@@ -443,7 +456,7 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		Label mergeLabel = this.mBuilder.newLabel();
 		for(int i = 0; i < e.size(); i++) {
 			// store to context.left
-			this.mBuilder.loadFromVar(this.argEntry);
+			this.mBuilder.loadFromVar(this.entry_context);
 			this.mBuilder.loadFromVar(entry_left);
 			this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
 
@@ -456,9 +469,9 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 		// break
 		this.mBuilder.mark(breakLabel);
 		// generate context.forgetFailure
-		this.mBuilder.loadFromVar(this.argEntry);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.loadFromVar(entry_f);
-		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "forgetFailure", long.class);
+		this.mBuilder.callInvocationTarget(this.target_forgetFailure);
 
 		// save return value
 		this.mBuilder.push(true);
