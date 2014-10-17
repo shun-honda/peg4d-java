@@ -69,7 +69,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 	// visitor api
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
-		pegInstStack.push(new Call(e.ruleName));
+		this.pegInstStack.push(new Call(e.ruleName));
 	}
 
 	@Override
@@ -79,7 +79,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 
 	@Override
 	public void visitFailure(ParsingFailure e) {
-		pegInstStack.push(new Failure());
+		this.pegInstStack.push(new Failure());
 	}
 	
 	@Override
@@ -91,7 +91,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		
 		// then block
 		PegInstruction[] thenInsts = new PegInstruction[1];
-		thenInsts[0] = new Consume(1);
+		thenInsts[0] = new Consume(new ConstInt(1));
 		Block thenBlock = new Block(null, thenInsts);
 		
 		// else block
@@ -100,7 +100,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		Block elseBlock = new Block(null, elseInsts);
 		
 		// If
-		pegInstStack.push(new If(cond, thenBlock, elseBlock));
+		this.pegInstStack.push(new If(cond, thenBlock, elseBlock));
 	}
 
 	@Override
@@ -111,7 +111,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		
 		// first condition
 		Cond firstcond = new Cond(int.class, OpType.GE, new GetLocal("ch"), new ConstInt(e.startByteChar));
-		If firstIf = new If(firstcond, new Consume(1), new Failure());
+		If firstIf = new If(firstcond, new Consume(new ConstInt(1)), new Failure());
 		
 		// second condition
 		Cond scondcond = new Cond(int.class, OpType.LE, new GetLocal("ch"), new ConstInt(e.startByteChar));
@@ -120,7 +120,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		PegInstruction[] child = new PegInstruction[1];
 		child[0] = new If(scondcond, firstIf, new Failure());
 		Block block = new Block(locals, child);
-		pegInstStack.push(block);
+		this.pegInstStack.push(block);
 	}
 
 	@Override
