@@ -63,6 +63,8 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	InvocationTarget target_abortLinkLog = newVirtualTarget(ParsingContext.class, void.class, "abortLinkLog", int.class);
 	InvocationTarget target_rememberFailure = newVirtualTarget(ParsingContext.class, long.class, "rememberFailure");
 	InvocationTarget target_forgetFailure = newVirtualTarget(ParsingContext.class, void.class, "forgetFailure", long.class);
+	InvocationTarget target_logLink = 
+			newVirtualTarget(ParsingContext.class, void.class, "logLink", ParsingObject.class, int.class, ParsingObject.class);
 
 
 	@Override
@@ -539,7 +541,71 @@ public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
 
 	@Override
 	public void visitConnector(ParsingConnector e) {
-		throw new RuntimeException("unimplemented visit method: " + e.getClass());
+		this.mBuilder.enterScope();
+
+		// variable
+		this.getFieldOfContext("left", ParsingObject.class);
+		VarEntry entry_left = this.mBuilder.createNewVarAndStore(ParsingObject.class);
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.callInvocationTarget(this.target_markObjectStack);
+		VarEntry entry_mark = this.mBuilder.createNewVarAndStore(int.class);
+
+		Label thenLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		// if cond
+		e.inner.visit(this);
+		this.mBuilder.push(true);
+		this.mBuilder.ifCmp(Type.BOOLEAN_TYPE, GeneratorAdapter.EQ, thenLabel);
+
+		// else
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.loadFromVar(entry_mark);
+		this.mBuilder.callInvocationTarget(this.target_abortLinkLog);
+//		this.mBuilder.pushNull();
+//		this.mBuilder.storeToVar(entry_left);
+		this.mBuilder.push(false);
+		this.mBuilder.goTo(mergeLabel);
+
+		// then
+		{
+			this.mBuilder.mark(thenLabel);
+
+			Label thenLabel2 = this.mBuilder.newLabel();
+			Label mergeLabel2 = this.mBuilder.newLabel();
+
+			this.getFieldOfContext("left", ParsingObject.class);
+			this.mBuilder.loadFromVar(entry_left);
+			this.mBuilder.ifCmp(Type.getType(Object.class), GeneratorAdapter.NE, thenLabel2);
+			this.mBuilder.goTo(mergeLabel2);
+
+			// then2
+			this.mBuilder.mark(thenLabel2);
+			this.mBuilder.loadFromVar(this.entry_context);
+			this.mBuilder.loadFromVar(entry_mark);
+			this.getFieldOfContext("left", ParsingObject.class);
+			this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "commitLinkLog", int.class, ParsingContext.class);
+
+			this.mBuilder.loadFromVar(this.entry_context);
+			this.mBuilder.loadFromVar(entry_left);
+			this.mBuilder.push(e.index);
+			this.getFieldOfContext("left", ParsingObject.class);
+			this.mBuilder.callInvocationTarget(this.target_logLink);
+
+			// merge2
+			this.mBuilder.mark(mergeLabel2);
+			this.mBuilder.loadFromVar(this.entry_context);
+			this.mBuilder.loadFromVar(entry_left);
+			this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+//			this.mBuilder.pushNull();
+//			this.mBuilder.storeToVar(entry_left);
+			this.mBuilder.push(true);
+		}
+
+		// merge
+		this.mBuilder.mark(mergeLabel);
+		this.mBuilder.exitScope();
 	}
 
 	@Override
