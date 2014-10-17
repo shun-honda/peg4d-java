@@ -1,14 +1,20 @@
 package org.peg4d.pegInstruction;
 
-public class GetLocal extends PegInstruction {
+public class SetLocalInt extends PegInstruction {
 	private String name;
+	private PegInstruction val;
 	
-	public GetLocal(String name) {
+	public SetLocalInt(String name, PegInstruction val) {
 		this.name = name;
+		this.val = val;
 	}
 	
 	public final String getName() {
 		return this.name;
+	}
+	
+	public final PegInstruction getVal() {
+		return this.val;
 	}
 	
 	@Override

@@ -1,9 +1,9 @@
 package org.peg4d.pegInstruction;
 
-public class AllocLocal extends PegInstruction {
+public class GetLocalLong extends PegInstruction {
 	private String name;
 	
-	public AllocLocal(String name) {
+	public GetLocalLong(String name) {
 		this.name = name;
 	}
 	

@@ -14,6 +14,7 @@ import org.peg4d.jvm.ClassBuilder.VarEntry;
 import org.peg4d.jvm.UserDefinedClassLoader;
 import org.peg4d.pegInstruction.AllocLocal;
 import org.peg4d.pegInstruction.Block;
+import org.peg4d.pegInstruction.ByteAt;
 import org.peg4d.pegInstruction.Call;
 import org.peg4d.pegInstruction.Cond;
 import org.peg4d.pegInstruction.ConstBool;
@@ -150,6 +151,11 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 	public void visit(Consume inst) {
 		this.mBuilder.push(inst.getConsumeLength());
 		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "consume", int.class);
+	}
+	
+	@Override
+	public void visit(ByteAt inst) {
+		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
 	}
 
 	@Override

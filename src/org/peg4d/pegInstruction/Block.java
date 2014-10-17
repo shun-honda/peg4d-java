@@ -1,20 +1,33 @@
 package org.peg4d.pegInstruction;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Block extends PegInstruction {
-	private PegInstruction[] locals;
-	private PegInstruction[] child;
+	private List<PegInstruction> localList;
+	private List<PegInstruction> childList;
 	
-	public Block(PegInstruction[] locals, PegInstruction[] child) {
-		this.locals = locals;
-		this.child = child;
+	public Block() {
+		this.localList = new ArrayList<PegInstruction>();
+		this.childList = new ArrayList<PegInstruction>();
 	}
 	
-	public final PegInstruction getLocal(int i) {
-		return this.locals[i];
+	public Block appendLocal(PegInstruction inst) {
+		this.localList.add(inst);
+		return this;
 	}
 	
-	public final PegInstruction getChild(int i) {
-		return this.child[i];
+	public Block appendChild(PegInstruction inst) {
+		this.localList.add(inst);
+		return this;
+	}
+	
+	public final List<PegInstruction> getLocal() {
+		return this.localList;
+	}
+	
+	public final List<PegInstruction> getChild(int i) {
+		return this.childList;
 	}
 
 	public final int getLocalSize() {
