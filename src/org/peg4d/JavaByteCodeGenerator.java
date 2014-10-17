@@ -2,8 +2,10 @@ package org.peg4d;
 
 import java.util.List;
 
+import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 import org.peg4d.jvm.ClassBuilder;
 import org.peg4d.jvm.Methods;
@@ -151,37 +153,78 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 	}
 
 	@Override
-	public void visit(Failure inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+	public void visit(Failure inst) {	// generate equivalent code to ParsingContext#failure
+		Label thenLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		// if cond
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
+
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
+
+		this.mBuilder.ifCmp(Type.LONG_TYPE, GeneratorAdapter.GT, thenLabel);
+
+		// else
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.pushNull();
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+		this.mBuilder.goTo(mergeLabel);
+
+		// then
+		this.mBuilder.mark(thenLabel);
+		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.dup();
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
+		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
+
+		//merge
+		this.mBuilder.mark(mergeLabel);
 	}
 
 	@Override
 	public void visit(IsFailed inst) {
-		throw new RuntimeException("unimplemented visit method: " + inst.getClass());
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		this.mBuilder.loadFromVar(this.entry_context);
+		this.mBuilder.getField(Type.getType(ParsingContext.class), "left", Type.getType(ParsingObject.class));
+
+		// if cond
+		this.mBuilder.ifNonNull(elseLabel);
+		// then
+		this.mBuilder.push(true);
+		this.mBuilder.goTo(mergeLabel);
+		// else
+		this.mBuilder.mark(elseLabel);
+		this.mBuilder.push(false);
+		// merge
+		this.mBuilder.mark(mergeLabel);
 	}
 
 	@Override
 	public void visit(GetPos inst) {
-		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.getField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
 	}
 
 	@Override
 	public void visit(SetPos inst) {
-		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.loadFromVar(this.entry_context);
 		inst.getVal().accept(this);
 		this.mBuilder.putField(Type.getType(ParsingContext.class), "pos", Type.getType(long.class));
 	}
 
 	@Override
 	public void visit(GetFpos inst) {
-		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.getField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
 	}
 
 	@Override
 	public void visit(SetFpos inst) {
-		this.mBuilder.loadFromVar(entry_context);
+		this.mBuilder.loadFromVar(this.entry_context);
 		inst.getVal().accept(this);
 		this.mBuilder.putField(Type.getType(ParsingContext.class), "fpos", Type.getType(long.class));
 	}
