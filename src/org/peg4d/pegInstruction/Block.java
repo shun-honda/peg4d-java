@@ -18,7 +18,7 @@ public class Block extends PegInstruction {
 	}
 	
 	public Block appendChild(PegInstruction inst) {
-		this.localList.add(inst);
+		this.childList.add(inst);
 		return this;
 	}
 	

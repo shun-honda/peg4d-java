@@ -90,6 +90,8 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 
 			// finalize
 			this.mBuilder.exitScope();
+			this.generateIsFailed();
+			this.mBuilder.not();
 			this.mBuilder.returnValue();// currently return boolean value.
 			this.mBuilder.endMethod();
 		}
@@ -114,7 +116,7 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 
 	private void exitScope() {
 		this.mBuilder.exitScope();
-		this.nameToEntryStack.poll();
+		this.nameToEntryStack.pop();
 	}
 
 	private VarEntry newEntry(String varName, Class<?> varClass) {
@@ -142,6 +144,24 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 	private void getFieldOfContext(String fieldName, Class<?> fieldClass) {
 		this.mBuilder.loadFromVar(this.entry_context);
 		this.mBuilder.getField(Type.getType(ParsingContext.class), fieldName, Type.getType(fieldClass));
+	}
+
+	private void generateIsFailed() {
+		Label elseLabel = this.mBuilder.newLabel();
+		Label mergeLabel = this.mBuilder.newLabel();
+
+		this.getFieldOfContext("left", ParsingObject.class);
+
+		// if cond
+		this.mBuilder.ifNonNull(elseLabel);
+		// then
+		this.mBuilder.push(true);
+		this.mBuilder.goTo(mergeLabel);
+		// else
+		this.mBuilder.mark(elseLabel);
+		this.mBuilder.push(false);
+		// merge
+		this.mBuilder.mark(mergeLabel);
 	}
 
 	@Override
@@ -245,6 +265,7 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 
 	@Override
 	public void visit(Consume inst) {
+		this.mBuilder.loadFromVar(this.entry_context);
 		inst.getConsumeLength().accept(this);
 		this.mBuilder.callInstanceMethod(ParsingContext.class, void.class, "consume", int.class);
 	}
@@ -279,21 +300,7 @@ public class JavaByteCodeGenerator implements PegInstructionVisitor, Opcodes {
 
 	@Override
 	public void visit(IsFailed inst) {
-		Label elseLabel = this.mBuilder.newLabel();
-		Label mergeLabel = this.mBuilder.newLabel();
-
-		this.getFieldOfContext("left", ParsingObject.class);
-
-		// if cond
-		this.mBuilder.ifNonNull(elseLabel);
-		// then
-		this.mBuilder.push(true);
-		this.mBuilder.goTo(mergeLabel);
-		// else
-		this.mBuilder.mark(elseLabel);
-		this.mBuilder.push(false);
-		// merge
-		this.mBuilder.mark(mergeLabel);
+		this.generateIsFailed();
 	}
 
 	@Override

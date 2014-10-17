@@ -66,6 +66,10 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		this.method = null;
 	}
 
+	public List<PegMethod> getGeneratedMethodList() {
+		return this.pegMethodList;
+	}
+
 	// visitor api
 	@Override
 	public void visitNonTerminal(NonTerminal e) {

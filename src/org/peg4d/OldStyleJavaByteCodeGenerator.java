@@ -36,7 +36,7 @@ import org.peg4d.jvm.UserDefinedClassLoader;
 import org.peg4d.jvm.ClassBuilder.MethodBuilder;
 import org.peg4d.jvm.ClassBuilder.VarEntry;
 
-public class JvmByteCodeGenerator extends GrammarFormatter implements Opcodes {
+public class OldStyleJavaByteCodeGenerator extends GrammarFormatter implements Opcodes {
 	private final static String packagePrefix = "org/peg4d/generated/";
 
 	private static int nameSuffix = -1;
