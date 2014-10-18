@@ -468,7 +468,7 @@ public class Main {
 		if(context.left == po) {
 			po.setEndPosition(context.pos);
 		}
-		return po;
+		return context.left;
 	}
 
 	private static void outputMap(ParsingObject po) {
