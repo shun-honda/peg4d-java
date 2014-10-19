@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
+import java.util.List;
 import java.util.TreeMap;
 
 import org.peg4d.data.RelationBuilder;
@@ -110,9 +111,19 @@ public class Main {
 			System.out.println(sb.toString());
 			
 			// jvm
-			if(fmt instanceof JvmByteCodeGenerator) {
+			if(fmt instanceof OldStyleJavaByteCodeGenerator) {
 				//UserDefinedClassLoader.setDump(true);
-				Class<?> parserClass = ((JvmByteCodeGenerator) fmt).generateClass();
+				Class<?> parserClass = ((OldStyleJavaByteCodeGenerator) fmt).generateClass();
+				if(InputFileName != null) {
+					loadInputFile(peg, InputFileName, parserClass);
+					return;
+				}
+				System.err.println("not exec generated parser, require input file");
+			}
+			else if(fmt instanceof PegInstructionGenerator) {
+				JavaByteCodeGenerator generator = new JavaByteCodeGenerator();
+				//UserDefinedClassLoader.setDump(true);
+				Class<?> parserClass = generator.generateParser(((PegInstructionGenerator) fmt).getGeneratedMethodList());
 				if(InputFileName != null) {
 					loadInputFile(peg, InputFileName, parserClass);
 					return;
@@ -281,7 +292,8 @@ public class Main {
 		driverMap.put("p4d", org.peg4d.GrammarFormatter.class);
 		driverMap.put("peg", org.peg4d.GrammarFormatter.class);
 		driverMap.put("vm", org.peg4d.CodeGenerator.class);
-		driverMap.put("jvm", org.peg4d.JvmByteCodeGenerator.class);
+		driverMap.put("old-jvm", org.peg4d.OldStyleJavaByteCodeGenerator.class);
+		driverMap.put("jvm", org.peg4d.PegInstructionGenerator.class);
 //		driverMap.put("svm", org.peg4d.vm.SimpleCodeGenerator.class);
 	}
 
@@ -456,7 +468,7 @@ public class Main {
 		if(context.left == po) {
 			po.setEndPosition(context.pos);
 		}
-		return po;
+		return context.left;
 	}
 
 	private static void outputMap(ParsingObject po) {

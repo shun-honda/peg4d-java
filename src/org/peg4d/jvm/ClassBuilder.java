@@ -254,6 +254,15 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 		}
 
 		/**
+		 * create new local variable
+		 * @param varClass
+		 * @return
+		 */
+		public VarEntry createNewVar(Class<?> varClass) {
+			return this.varScopes.peek().newVarEntry(varClass);
+		}
+
+		/**
 		 * create new local variable entry and store stack top value to created entry
 		 * @param varClass
 		 * @return
@@ -328,6 +337,23 @@ public class ClassBuilder extends ClassWriter implements Opcodes {
 				String methodName, Class<?>... paramClasses) {
 			Method methodDesc = Methods.method(returnClass, methodName, paramClasses);
 			this.invokeStatic(Type.getType(ownerClass), methodDesc);
+		}
+
+		/**
+		 * only support invokestatic, invokevirtual
+		 * @param target
+		 */
+		public void callInvocationTarget(InvocationTarget target) {
+			switch(target.getInvocationType()) {
+			case INVOKE_STATIC:
+				this.invokeStatic(target.getOwnerTypeDesc(), target.getMethodDesc());
+				break;
+			case INVOKE_VIRTUAL:
+				this.invokeVirtual(target.getOwnerTypeDesc(), target.getMethodDesc());
+				break;
+			default:
+				break;
+			}
 		}
 	}
 

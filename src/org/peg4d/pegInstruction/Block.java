@@ -18,7 +18,7 @@ public class Block extends PegInstruction {
 	}
 	
 	public Block appendChild(PegInstruction inst) {
-		this.localList.add(inst);
+		this.childList.add(inst);
 		return this;
 	}
 	
@@ -29,7 +29,7 @@ public class Block extends PegInstruction {
 	public final List<PegInstruction> getChild(int i) {
 		return this.childList;
 	}
-	
+
 	@Override
 	public void accept(PegInstructionVisitor visitor) {
 		visitor.visit(this);

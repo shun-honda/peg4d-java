@@ -66,6 +66,10 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		this.method = null;
 	}
 
+	public List<PegMethod> getGeneratedMethodList() {
+		return this.pegMethodList;
+	}
+
 	// visitor api
 	@Override
 	public void visitNonTerminal(NonTerminal e) {
@@ -90,7 +94,7 @@ public class PegInstructionGenerator extends GrammarFormatter {
 		Cond cond = new Cond(int.class, OpType.EQ, byteAt, constInt);
 		
 		// then block
-		Block thenBlock = new Block().appendChild(new ConstInt(1));
+		Block thenBlock = new Block().appendChild(new Consume(new ConstInt(1)));
 		
 		// else block
 		Block elseBlock = new Block().appendChild(new Failure());
