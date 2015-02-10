@@ -5,6 +5,11 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.Map;
 
+import nez.Production;
+import nez.expr.NezParserCombinator;
+import nez.util.UList;
+import nez.util.UMap;
+
 import org.peg4d.data.RelationBuilder;
 import org.peg4d.jvm.JavaByteCodeGenerator;
 import org.peg4d.pegcode.GrammarGenerator;
@@ -21,7 +26,7 @@ public class Main {
 	public final static String  CodeName  = "yokohama";
 	public final static int     MajorVersion = 0;
 	public final static int     MinerVersion = 9;
-	public final static int     PatchLevel   = 2;
+	public final static int     PatchLevel   = 3;
 	public final static String  Version = "" + MajorVersion + "." + MinerVersion + "." + PatchLevel;
 	public final static String  Copyright = "Copyright (c) 2014, Nez project authors";
 	public final static String  License = "BSD-Style Open Source";
@@ -55,15 +60,12 @@ public class Main {
 	// -o, --output
 	private static String OutputFileName = null;
 
-	// -t, --type
-	private static String OutputType = null;
-
 	// --start
 	private static String StartingPoint = "File";  // default
 	// -W
 	public static int WarningLevel = 1;
 	// -g
-	public static int DebugLevel = 0;
+	public static int DebugLevel = 1;
 	// --verbose
 	public static boolean VerboseMode    = false;
 	// --test
@@ -131,15 +133,8 @@ public class Main {
 			}
 			else if ((argument.equals("-o") || argument.equals("--output")) && (index < args.length)) {
 				OutputFileName = args[index];
-//				if(OutputType == null && OutputFileName.lastIndexOf('.') > 0) {
-//					OutputType = OutputFileName.substring(OutputFileName.lastIndexOf('.')+1);
-//				}
 				index = index + 1;
 			}
-//			else if ((argument.equals("-t") || argument.equals("--type")) && (index < args.length)) {
-//				OutputType = args[index];
-//				index = index + 1;
-//			}
 			else if (argument.equals("--start") && (index < args.length)) {
 				StartingPoint = args[index];
 				index = index + 1;
@@ -491,6 +486,12 @@ public class Main {
 		}
 		System.out.println("");
 		return startPoint;
+	}
+	
+	public final static void nez() {
+		nez.Grammar peg = NezParserCombinator.newGrammar();
+		Production p = peg.getProduction("DIGIT");
+		assert(p.match("8"));
 	}
 
 	private static jline.ConsoleReader ConsoleReader = null;
