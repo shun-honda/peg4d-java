@@ -139,6 +139,10 @@ public class Grammar {
 		}
 	}
 	
+	public final UMap<ParsingRule> getRuleMap() {
+		return ruleMap;
+	}
+	
 	public final ParsingExpression getExpression(String ruleName) {
 		ParsingRule rule = this.getRule(ruleName);
 		if(rule != null) {

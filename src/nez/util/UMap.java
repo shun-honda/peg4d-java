@@ -1,6 +1,7 @@
 package nez.util;
 
 import java.util.HashMap;
+import java.util.Set;
 
 import org.peg4d.Utils;
 
@@ -56,6 +57,9 @@ public final class UMap <T> {
 			a.add(k);
 		}
 		return a;
+	}
+	public final Set<String> keySet(){
+		return this.m.keySet();
 	}
 	public final UList<T> values(T[] aa) {
 		UList<T> a = new UList<T>(aa);

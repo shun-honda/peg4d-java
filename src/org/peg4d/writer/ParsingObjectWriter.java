@@ -23,7 +23,9 @@ public class ParsingObjectWriter extends ParsingWriter {
 		else {
 			String nindent = "  " + indent;
 			for(int i = 0; i < po.size(); i++) {
-				this.writePego(po.get(i), nindent);
+				if (po.get(i) != null) {
+					this.writePego(po.get(i), nindent);
+				}
 			}
 			this.out.println();
 			this.out.print(indent);
