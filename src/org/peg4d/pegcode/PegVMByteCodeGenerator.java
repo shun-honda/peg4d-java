@@ -86,11 +86,9 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 		case 3:
 			O_Inlining = true;
 			O_FusionInstruction = true;
-			O_FusionOperand = true;
-			O_StackCaching = true;
 			break;
 		case 4:
-			//O_Inlining = true;
+			O_Inlining = true;
 			O_FusionInstruction = true;
 			O_MappedChoice = true;
 			//O_FusionOperand = true;
@@ -701,150 +699,6 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 			}
 		}
 	}
-	
-	// The depth to control the stack caching optimization
-	int depth = 0;
-	
-	private boolean checkSCRepetition(ParsingExpression e) {
-		if (e instanceof NonTerminal) {
-			e = getNonTerminalRule(e);
-		}
-		if (e instanceof ParsingRepetition) {
-			if (checkOptRepetition((ParsingRepetition)e)) {
-				return true;
-			}
-			return false;
-		}
-		if (e instanceof ParsingUnary) {
-			if (depth++ < 3) {
-				return checkSCRepetition(((ParsingUnary) e).inner);
-			}
-			depth = 0;
-			return false;
-		}
-		if(e instanceof ParsingList) {
-			for(int i = 0; i < e.size(); i++) {
-				if (!checkSCRepetition(e.get(i))) {
-					return false;
-				}
-			}
-			return true;
-		}
-		return true;
-	}
-
-	private boolean checkSCNot(ParsingExpression e) {
-		if (e instanceof NonTerminal) {
-			e = getNonTerminalRule(e);
-		}
-		if (e instanceof ParsingNot) {
-			if (checkOptNot((ParsingNot)e)) {
-				return true;
-			}
-			return false;
-		}
-		if (e instanceof ParsingUnary) {
-			if (depth++ < 3) {
-				return checkSCNot(((ParsingUnary) e).inner);
-			}
-			depth = 0;
-			return false;
-		}
-		if(e instanceof ParsingList) {
-			for(int i = 0; i < e.size(); i++) {
-				if (!checkSCNot(e.get(i))) {
-					return false;
-				}
-			}
-			return true;
-		}
-		return true;
-	}
-
-	private boolean checkSCOptional(ParsingExpression e) {
-		if (e instanceof NonTerminal) {
-			e = getNonTerminalRule(e);
-		}
-		if (e instanceof ParsingOption) {
-			if (checkOptOptional((ParsingOption)e)) {
-				return true;
-			}
-			return false;
-		}
-		if (e instanceof ParsingUnary) {
-			if (depth++ < 3) {
-				return checkSCOptional(((ParsingUnary) e).inner);
-			}
-			depth = 0;
-			return false;
-		}
-		if(e instanceof ParsingList) {
-			for(int i = 0; i < e.size(); i++) {
-				if (!checkSCOptional(e.get(i))) {
-					return false;
-				}
-			}
-			return true;
-		}
-		return true;
-	}
-
-	private boolean checkOptRepetition(ParsingRepetition e) {
-		ParsingExpression inner = e.inner;
-		if (inner instanceof NonTerminal) {
-			inner = getNonTerminalRule(inner);
-		}
-		if (inner instanceof ParsingByteRange) {
-			return true;
-		}
-		if (inner instanceof ParsingChoice) {
-			return checkCharClass((ParsingChoice)inner);
-		}
-		return false;
-	}
-
-	private boolean checkOptNot(ParsingNot e) {
-		ParsingExpression inner = e.inner;
-		if (inner instanceof NonTerminal) {
-			inner = getNonTerminalRule(inner);
-		}
-		if (inner instanceof ParsingByte) {
-			return true;
-		}
-		if (inner instanceof ParsingByteRange) {
-			return true;
-		}
-		if(inner instanceof ParsingAny) {
-			return true;
-		}
-		if(inner instanceof ParsingChoice) {
-			return checkCharClass((ParsingChoice)inner);
-		}
-		if (inner instanceof ParsingSequence) {
-			return checkString((ParsingSequence)inner);
-		}
-		return false;
-	}
-
-	private boolean checkOptOptional(ParsingOption e) {
-		ParsingExpression inner = e.inner;
-		if (inner instanceof NonTerminal) {
-			inner = getNonTerminalRule(inner);
-		}
-		if (inner instanceof ParsingByte) {
-			return true;
-		}
-		if (inner instanceof ParsingByteRange) {
-			return true;
-		}
-		if(inner instanceof ParsingChoice) {
-			return checkCharClass((ParsingChoice)inner);
-		}
-		if (inner instanceof ParsingSequence) {
-			return checkString((ParsingSequence)inner);
-		}
-		return false;
-	}
 
 	private ParsingExpression getNonTerminalRule(ParsingExpression e) {
 		while(e instanceof NonTerminal) {
@@ -1084,7 +938,6 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 	@Override
 	public void visitByte(ParsingByte e) {
 		writeCode(Instruction.CHAR, e.byteChar, this.jumpFailureJump());
-		//writeJumpCode(Instruction.IFFAIL, this.jumpFailureJump());
 	}
 
 	@Override
@@ -1100,13 +953,11 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 		System.out.println("\t" + code.toString());
 		this.codeIndex++;
 		codeList.add(code);
-		//writeJumpCode(Instruction.IFFAIL, this.jumpFailureJump());
 	}
 
 	@Override
 	public void visitAny(ParsingAny e) {
 		writeJumpCode(Instruction.ANY, this.jumpFailureJump());
-		//writeJumpCode(Instruction.IFFAIL, this.jumpFailureJump());
 	}
 
 	@Override
@@ -1230,15 +1081,10 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 		int label = newLabel();
 		this.pushFailureJumpPoint();
 		if (e.leftJoin) {
-//			writeCode(Instruction.PUSHconnect);
 			writeCode(Instruction.PUSHo);
-			//writeCode(Instruction.PUSHm);
-//			writeCode(Instruction.NEW);
 			writeCode(Instruction.LEFTJOIN, 0);
 		}
 		else {
-				//writeCode(Instruction.PUSHo);
-				//writeCode(Instruction.PUSHm);
 				writeCode(Instruction.NEW);
 			}
 			for(int i = 0; i < e.size(); i++) {
@@ -1253,14 +1099,12 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 			if (e.leftJoin) {
 				writeCode(Instruction.POPo);
 			}
-			//writeCode(Instruction.POPo);
 			writeJumpCode(Instruction.JUMP, label);
 			this.popFailureJumpPoint(e);
 			writeCode(Instruction.ABORT);
 			if (e.leftJoin) {
 				writeCode(Instruction.STOREo);
 			}
-			//writeCode(Instruction.STOREo);
 			writeJumpCode(Instruction.JUMP, this.jumpFailureJump());
 			writeLabel(label);
 		}
@@ -1275,14 +1119,10 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 			int label = newLabel();
 			this.pushFailureJumpPoint();
 			writeCode(Instruction.PUSHo);
-			//writeCode(Instruction.PUSHm);
 			e.inner.visit(this);
 			writeCode(Instruction.COMMITLINK, e.index);
-			//writeCode(Instruction.LINK, e.index);
-			//writeCode(Instruction.STOREo);
 			writeJumpCode(Instruction.JUMP, label);
 			this.popFailureJumpPoint(e);
-			//writeCode(Instruction.SUCC);
 			writeCode(Instruction.ABORT);
 			writeCode(Instruction.STOREo);
 			writeJumpCode(Instruction.JUMP, jumpFailureJump());
