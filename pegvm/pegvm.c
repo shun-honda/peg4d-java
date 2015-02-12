@@ -75,14 +75,6 @@ static void dump_PegVMInstructions(Instruction *inst, uint64_t size) {
     if (inst[i].ndata) {
       switch (inst->opcode) {
 #define OP_DUMPCASE(OP) case PEGVM_OP_##OP:
-        OP_DUMPCASE(CHARRANGE) {
-          fprintf(stderr, "[%d-", inst[i].ndata[1]);
-          fprintf(stderr, "%d] ", inst[i].ndata[2]);
-          // fprintf(stderr, "%d ", inst[i].jump);
-        }
-        OP_DUMPCASE(CHARSET) {
-          // fprintf(stderr, "%d ", inst[i].jump);
-        }
       default:
         // fprintf(stderr, "%d ", inst[i].jump);
         break;
@@ -177,10 +169,19 @@ PegVMInstruction *nez_LoadMachineCode(ParsingContext context,
     code_length = (uint8_t)buf[info.pos++];
     code_length = (code_length) | ((uint8_t)buf[info.pos++] << 8);
     if (code_length != 0) {
-      if (code_length == 1) {
+      if (inst[i].opcode == PEGVM_OP_CHAR ||
+          inst[i].opcode == PEGVM_OP_NOTCHAR ||
+          inst[i].opcode == PEGVM_OP_OPTIONALCHAR) {
+        inst[i].chardata = (char *)malloc(sizeof(char));
+        inst[i].chardata[0] = read32(buf, &info);
+      } else if (code_length == 1) {
         inst[i].ndata = malloc(sizeof(int));
         inst[i].ndata[0] = read32(buf, &info);
-      } else if (inst[i].opcode == PEGVM_OP_MAPPEDCHOICE) {
+      } else if (inst[i].opcode == PEGVM_OP_MAPPEDCHOICE ||
+                 inst[i].opcode == PEGVM_OP_CHARCLASS ||
+                 inst[i].opcode == PEGVM_OP_NOTCHARCLASS ||
+                 inst[i].opcode == PEGVM_OP_OPTIONALCHARCLASS ||
+                 inst[i].opcode == PEGVM_OP_ZEROMORECHARCLASS) {
         inst[i].ndata = malloc(sizeof(int) * code_length);
         while (j < code_length) {
           inst[i].ndata[j] = read32(buf, &info);
@@ -562,10 +563,6 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
   PUSH_IP(context, inst);
   P4D_setObject(context, &left, P4D_newObject(context, context->pos, pool));
 
-  long Regrp = 0;
-  long Regnp = 0;
-  long Regop = 0;
-
   goto *(pc)->ptr;
 
   OP(EXIT) {
@@ -581,8 +578,6 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     rule_count[pc->ndata[0]]++;
 #endif
     JUMP;
-    // pc = inst[pc].jump;
-    // goto *inst[pc].ptr;
   }
   OP(RET) { RET; }
   OP(CONDBRANCH) {
@@ -591,30 +586,18 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     }
     DISPATCH_NEXT;
   }
-  OP(REPCOND) {
-    if (pos != POP_SP()) {
-      DISPATCH_NEXT;
-    }
-    JUMP;
-  }
-  OP(CHARRANGE) {
-    if ((pc)->chardata[0] <= inputs[pos] && inputs[pos] <= (pc)->chardata[1]) {
+  OP(CHAR) {
+    if (pc->chardata[0] == inputs[pos]) {
       pos++;
       DISPATCH_NEXT;
-    } else {
-      failflag = 1;
-      JUMP;
     }
+    failflag = 1;
+    JUMP;
   }
-  OP(CHARSET) {
-    int j = 0;
-    int len = *(pc)->ndata;
-    while (j < len) {
-      if (inputs[pos] == (pc)->chardata[j]) {
-        pos++;
-        DISPATCH_NEXT;
-      }
-      j++;
+  OP(CHARCLASS) {
+    if (pc->ndata[(int)inputs[pos]]) {
+      pos++;
+      DISPATCH_NEXT;
     }
     failflag = 1;
     JUMP;
@@ -641,42 +624,27 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     DISPATCH_NEXT;
   }
   OP(PUSHo) {
-    ParsingObject po = P4D_newObject(context, pos, pool);
-    *po = *left;
-    po->refc = 1;
-    PUSH_OSP(po);
-    DISPATCH_NEXT;
-  }
-  OP(PUSHconnect) {
     ParsingObject po = left;
     left->refc++;
     PUSH_OSP(po);
     PUSH_SP(P4D_markLogStack(context));
     DISPATCH_NEXT;
   }
-  OP(PUSHp1) {
+  OP(PUSHp) {
     PUSH_SP(pos);
     DISPATCH_NEXT;
   }
-  OP(LOADrp) {
-    Regrp = pos;
-    DISPATCH_NEXT;
-  }
-  OP(LOADnp) {
-    Regnp = pos;
-    DISPATCH_NEXT;
-  }
-  OP(LOADop) {
-    Regop = pos;
+  OP(POPo) {
+    ParsingObject po = POP_OSP();
+    P4D_setObject(context, &po, NULL);
     DISPATCH_NEXT;
   }
   OP(POPp) {
     POP_SP();
     DISPATCH_NEXT;
   }
-  OP(POPo) {
-    ParsingObject po = POP_OSP();
-    P4D_setObject(context, &po, NULL);
+  OP(GETp) {
+    pos = SP_TOP();
     DISPATCH_NEXT;
   }
   OP(STOREo) {
@@ -688,20 +656,18 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     pos = POP_SP();
     DISPATCH_NEXT;
   }
-  OP(STORErp) {
-    pos = Regrp;
-    DISPATCH_NEXT;
-  }
-  OP(STOREnp) {
-    pos = Regnp;
-    DISPATCH_NEXT;
-  }
-  OP(STOREop) {
-    pos = Regop;
-    DISPATCH_NEXT;
-  }
   OP(STOREflag) {
     failflag = pc->ndata[0];
+    DISPATCH_NEXT;
+  }
+  OP(STOREp_flag) {
+    pos = POP_SP();
+    failflag = pc->ndata[0];
+    DISPATCH_NEXT;
+  }
+  OP(STOREendp) {
+    left->end_pos = pos;
+    POP_SP();
     DISPATCH_NEXT;
   }
   OP(NEW) {
@@ -710,16 +676,15 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     // PUSH_SP(P4D_markLogStack(context));
     DISPATCH_NEXT;
   }
-  OP(NEWJOIN) {
+  OP(LEFTJOIN) {
     ParsingObject po = NULL;
     P4D_setObject(context, &po, left);
     P4D_setObject(context, &left, P4D_newObject(context, pos, pool));
-    // PUSH_SP(P4D_markLogStack(context));
     P4D_lazyJoin(context, po, pool);
     P4D_lazyLink(context, left, *(pc)->ndata, po, pool);
     DISPATCH_NEXT;
   }
-  OP(COMMIT) {
+  OP(COMMITLINK) {
     P4D_commitLog(context, (int)POP_SP(), left, pool);
     ParsingObject parent = (ParsingObject)POP_OSP();
     P4D_lazyLink(context, parent, *(pc)->ndata, left, pool);
@@ -728,17 +693,6 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
   }
   OP(ABORT) {
     P4D_abortLog(context, (int)POP_SP());
-    DISPATCH_NEXT;
-  }
-  OP(LINK) {
-    ParsingObject parent = (ParsingObject)POP_OSP();
-    P4D_lazyLink(context, parent, *(pc)->ndata, left, pool);
-    // P4D_setObject(context, &left, parent);
-    PUSH_OSP(parent);
-    DISPATCH_NEXT;
-  }
-  OP(SETendp) {
-    left->end_pos = pos;
     DISPATCH_NEXT;
   }
   OP(TAG) {
@@ -770,7 +724,7 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     context->repeat_table[pc->ndata[1]] = atoi(value);
     DISPATCH_NEXT;
   }
-  OP(CHECKEND) {
+  OP(IFREPEATEND) {
     if (context->repeat_table[pc->ndata[0]] == 0) {
       DISPATCH_NEXT;
     }
@@ -796,14 +750,14 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     failflag = matchSymbolTable(context, &pos, pc->ndata[0]);
     DISPATCH_NEXT;
   }
-  OP(BLOCKSTART) {
+  OP(BLOCKstart) {
     long len;
     PUSH_SP(context->stateValue);
     char *value = getIndentText(context, inputs, pos, &len);
     PUSH_SP(pushSymbolTable(context, pc->ndata[0], (int)len, value));
     DISPATCH_NEXT;
   }
-  OP(BLOCKEND) {
+  OP(BLOCKend) {
     popSymbolTable(context, (int)POP_SP());
     context->stateValue = (int)POP_SP();
     DISPATCH_NEXT;
@@ -812,39 +766,19 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     matchSymbolTableTop(context, &pos, pc->ndata[0]);
     DISPATCH_NEXT;
   }
-  OP(NOTBYTE) {
-    if (inputs[pos] != *(pc)->ndata) {
-      DISPATCH_NEXT;
-    }
-    failflag = 1;
-    JUMP;
-  }
-  OP(NOTANY) {
-    if (inputs[pos] != 0) {
+  OP(NOTCHAR) {
+    if (inputs[pos] == *(pc)->chardata) {
       failflag = 1;
       JUMP;
     }
     DISPATCH_NEXT;
   }
-  OP(NOTCHARSET) {
-    int j = 0;
-    int len = *(pc)->ndata;
-    while (j < len) {
-      if (inputs[pos] == (pc)->chardata[j]) {
-        failflag = 1;
-        JUMP;
-      }
-      j++;
+  OP(NOTCHARCLASS) {
+    if (pc->ndata[(int)inputs[pos]]) {
+      failflag = 1;
+      JUMP;
     }
     DISPATCH_NEXT;
-  }
-  OP(NOTBYTERANGE) {
-    if (!(inputs[pos] >= (pc)->chardata[0] &&
-          inputs[pos] <= (pc)->chardata[1])) {
-      DISPATCH_NEXT;
-    }
-    failflag = 1;
-    JUMP;
   }
   OP(NOTSTRING) {
     char *p = pc->chardata;
@@ -862,27 +796,16 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     failflag = 1;
     JUMP;
   }
-  OP(OPTIONALBYTE) {
-    if (inputs[pos] == *(pc)->ndata) {
+  OP(OPTIONALCHAR) {
+    if (inputs[pos] == *(pc)->chardata) {
       pos++;
     }
     DISPATCH_NEXT;
   }
-  OP(OPTIONALCHARSET) {
-    int j = 0;
-    int len = *(pc)->ndata;
-    while (j < len) {
-      if (inputs[pos] == (pc)->chardata[j]) {
-        pos++;
-        DISPATCH_NEXT;
-      }
-      j++;
-    }
-    DISPATCH_NEXT;
-  }
-  OP(OPTIONALBYTERANGE) {
-    if (inputs[pos] >= (pc)->chardata[0] && inputs[pos] <= (pc)->chardata[1]) {
+  OP(OPTIONALCHARCLASS) {
+    if ((pc)->ndata[(int)inputs[pos]]) {
       pos++;
+      DISPATCH_NEXT;
     }
     DISPATCH_NEXT;
   }
@@ -900,44 +823,12 @@ long nez_VM_Execute(ParsingContext context, Instruction *inst) {
     }
     DISPATCH_NEXT;
   }
-  OP(ZEROMOREBYTERANGE) {
+  OP(ZEROMORECHARCLASS) {
     while (1) {
-      if (!(inputs[pos] >= (pc)->chardata[0] &&
-            inputs[pos] <= (pc)->chardata[1])) {
-        DISPATCH_NEXT;
-      }
-      pos++;
-    }
-  }
-  OP(ZEROMORECHARSET) {
-    int j = 0;
-    int len = *(pc)->ndata;
-    while (j < len) {
-      if (inputs[pos] == (pc)->chardata[j]) {
-        pos++;
-        j = 0;
-      } else {
-        j++;
-      }
-    }
-    DISPATCH_NEXT;
-  }
-  OP(ZEROMOREWS) {
-    while (1) {
-      char c = inputs[pos];
-      if (c == 32 || c == 9 || c == 10 || c == 13) {
-        pos++;
-      } else {
+      if (!(pc)->ndata[(int)inputs[pos]]) {
         break;
       }
-    }
-    DISPATCH_NEXT;
-  }
-  OP(REPEATANY) {
-    long back = pos;
-    pos = pos + context->repeat_table[pc->ndata[0]];
-    if (pos - 1 > (long)context->input_size) {
-      pos = back;
+      pos++;
     }
     DISPATCH_NEXT;
   }
