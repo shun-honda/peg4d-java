@@ -90,11 +90,11 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 			O_StackCaching = true;
 			break;
 		case 4:
-			O_Inlining = true;
+			//O_Inlining = true;
 			O_FusionInstruction = true;
 			O_MappedChoice = true;
-			O_FusionOperand = true;
-			O_StackCaching = true;
+			//O_FusionOperand = true;
+			//O_StackCaching = true;
 			break;
 		default:
 			break;
@@ -1250,7 +1250,6 @@ public class PegVMByteCodeGenerator extends GrammarGenerator {
 				}
 			}
 			writeCode(Instruction.STOREendp);
-			writeCode(Instruction.POPp);
 			if (e.leftJoin) {
 				writeCode(Instruction.POPo);
 			}
